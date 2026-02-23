@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # --- BASE DE DATOS (PostgreSQL) ---
+  db:
+    image: postgres:15-alpine
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=goalos_admin
+      - POSTGRES_PASSWORD=goalos_secure_pass
+      - POSTGRES_DB=goalos_v4
+    ports:
+      - "5432:5432"
+
+  # --- COLA DE TAREAS (Redis) ---
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  # --- BACKEND (FastAPI) ---
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    volumes:
+      - ./apps/api:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://goalos_admin:goalos_secure_pass@db:5432/goalos_v4
+      - REDIS_URL=redis://redis:6379/0
+      # ✅ REFERENCIA SEGURA: Lee del archivo .env local
+      - GOOGLE_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SECRET_KEY=${SECRET_KEY} # 🔐 Clave de firma JWT
+
+  # 🤖 EL CEREBRO ASÍNCRONO (Celery Worker)
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    command: celery -A src.celery_app.celery_app worker --loglevel=info
+    volumes:
+      - ./apps/api:/app
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://goalos_admin:goalos_secure_pass@db:5432/goalos_v4
+      - REDIS_URL=redis://redis:6379/0
+      # ✅ CORREGIDO: El worker ahora también usa referencias seguras
+      - GOOGLE_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SECRET_KEY=${SECRET_KEY} # 🔐 Clave de firma JWT
+
+  # ⏰ EL CRONÓMETRO (Celery Beat)
+  beat:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    command: celery -A src.celery_app.celery_app beat --loglevel=info
+    volumes:
+      - ./apps/api:/app
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://goalos_admin:goalos_secure_pass@db:5432/goalos_v4
+      - REDIS_URL=redis://redis:6379/0
+
+  # --- FRONTEND (Next.js) ---
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=secret-goalos-key-change-me
+
+volumes:
+  postgres_data:

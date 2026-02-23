@@ -1,0 +1,38 @@
+# --- SEGURIDAD CRÍTICA ---
+.env
+.env.local
+.env.*.local
+
+# --- PYTHON (Backend) ---
+__pycache__/
+*.pyc
+venv/
+.pytest_cache/
+htmlcov/
+
+# --- NODE.JS & NEXT.JS (Frontend) ---
+node_modules/
+.next/
+out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- SISTEMA OPERATIVO & IDEs ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- BASE DE DATOS LOCAL ---
+*.sqlite3
+*.db
+
+# --- DOCKER (Opcional, si usas overrides locales) ---
+docker-compose.override.yml
+.aider*
+
+.env

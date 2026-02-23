@@ -1,0 +1,15 @@
+# GoalOS v2.0 - Technical Overview
+
+GoalOS is an institutional-grade quantitative sports investment terminal. It identifies value bets in football (soccer) using mathematical models (Poisson Distribution) and a multi-agent AI consensus system.
+
+## System Architecture
+- **Backend (`/apps/api`):** Python 3.11+, FastAPI.
+- **Database:** PostgreSQL (managed via SQLModel & Alembic migrations).
+- **Background Tasks:** Celery + Redis (used for async ingestion and background AI processing).
+- **Frontend (`/apps/web`):** Next.js 14+ (App Router, Turbopack), TailwindCSS, TypeScript.
+- **Infrastructure:** Docker Compose (api, web, db, redis, worker, beat).
+
+## Core Principles
+1. Mathematical accuracy over human intuition.
+2. High-performance async endpoints.
+3. Strict ACID compliance for user bankroll transactions.
