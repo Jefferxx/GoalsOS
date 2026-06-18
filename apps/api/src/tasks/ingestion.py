@@ -3,7 +3,7 @@ from celery import shared_task
 from sqlmodel import Session, select
 from src.db.session import engine
 from src.models.match import Match
-from src.services.football.mock_service import MockFootballService
+from src.services.football.real_service import RealFootballService
 from src.services.football.mapper import DataMapper
 
 # ─── CONFIGURACIÓN CENTRALIZADA DE LIGAS ───────────────────────────────────
@@ -31,8 +31,7 @@ def run_daily_ingestion():
     print("⏰ [CRON] Iniciando Ingesta Diaria Automática...")
     
     # 1. Instanciar Servicios
-    # NOTA: En Fase 7 usamos Mock, en Fase 8 cambiaremos a RealService
-    football_service = MockFootballService()
+    football_service = RealFootballService()
     
     # 2. Definir fecha (Mañana)
     tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
