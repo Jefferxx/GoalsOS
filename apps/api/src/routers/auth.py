@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 from sqlmodel import Session, select
 from pydantic import BaseModel
-from passlib.context import CryptContext
 from jose import jwt
 
 from src.db.session import get_session
@@ -12,7 +11,6 @@ from src.models.user import User
 from src.utils.security import verify_password, SECRET_KEY, ALGORITHM
 
 router = APIRouter(prefix="", tags=["Autenticación y Setup"])
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Duración del token (configurable por env var, default 8 horas)
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", 8))
@@ -36,30 +34,6 @@ def _create_access_token(data: dict) -> str:
     payload.update({"exp": expire, "iat": datetime.datetime.utcnow()})
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-
-@router.get("/setup-admin")
-async def setup_admin(session: Session = Depends(get_session)):
-    """Crea el usuario admin si no existe"""
-    def do_setup():
-        email = "jefferson@goalos.com"
-        existing_user = session.exec(select(User).where(User.email == email)).first()
-        if existing_user:
-            return {"status": "exists", "msg": f"El usuario {email} ya existe."}
-        
-        admin_user = User(
-            email=email,
-            full_name="Jefferson CEO",
-            hashed_password=pwd_context.hash("admin123"),
-            role="admin",
-            is_active=True,
-            is_superuser=True,
-            bankroll=100.00
-        )
-        session.add(admin_user)
-        session.commit()
-        return {"status": "created", "msg": f"✅ Usuario {email} creado. Password: admin123"}
-        
-    return await run_in_threadpool(do_setup)
 
 
 @router.post("/auth/login", response_model=TokenResponse)
