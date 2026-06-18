@@ -30,6 +30,7 @@ const handler = NextAuth({
             name: data.user.name,
             email: data.user.email,
             role: data.user.role,
+            accessToken: data.access_token, // JWT del backend, necesario para llamadas autenticadas
           };
         }
 
@@ -50,7 +51,7 @@ const handler = NextAuth({
       return session;
     },
   },
-  secret: "secret-goalos-key-change-me", // En prod esto va en .env
+  secret: process.env.NEXTAUTH_SECRET,
 });
 
 export { handler as GET, handler as POST };
