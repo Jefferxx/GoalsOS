@@ -1,10 +1,17 @@
 import datetime
+import pytz
 from celery import shared_task
 from sqlmodel import Session, select
 from src.db.session import engine
 from src.models.match import Match
 from src.services.football.real_service import RealFootballService
 from src.services.football.mapper import DataMapper
+
+ECUADOR_TZ = pytz.timezone('America/Guayaquil')
+
+# Margen de seguridad: si quedan menos de esta cantidad de requests en el día,
+# se aborta la ingesta para no arriesgar un ban de la cuenta de API-Football.
+QUOTA_SAFETY_MARGIN = 15
 
 # ─── CONFIGURACIÓN CENTRALIZADA DE LIGAS ───────────────────────────────────
 # Fuente única de verdad para todos los workers de ingesta.
@@ -29,19 +36,29 @@ def run_daily_ingestion():
     Se ejecuta automáticamente cada madrugada.
     """
     print("⏰ [CRON] Iniciando Ingesta Diaria Automática...")
-    
+
     # 1. Instanciar Servicios
     football_service = RealFootballService()
-    
-    # 2. Definir fecha (Mañana)
-    tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-    
+
+    # Guard de cuota: abortar si queda poco margen para no arriesgar un ban.
+    status = football_service._get("status")
+    if status:
+        requests_info = status.get("requests", {})
+        remaining = requests_info.get("limit_day", 100) - requests_info.get("current", 0)
+        if remaining < QUOTA_SAFETY_MARGIN:
+            print(f"🛑 [CRON] Cuota insuficiente ({remaining} restantes). Ingesta abortada por seguridad.")
+            return f"Ingesta abortada: solo {remaining} requests restantes hoy"
+
+    # 2. Definir fecha (Mañana, hora Ecuador — consistente con workers.py)
+    now_ec = datetime.datetime.now(ECUADOR_TZ)
+    tomorrow = (now_ec.date() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
     # 3. Abrir Sesión de Base de Datos (Manual porque no hay FastAPI Depends)
     with Session(engine) as session:
         # A. Bajar Partidos
         fixtures = football_service.get_fixtures_by_date(tomorrow)
         print(f"📥 [CRON] Encontrados {len(fixtures)} partidos para {tomorrow}")
-        
+
         count = 0
         allowed = ALLOWED_LEAGUES  # Usa la config centralizada del módulo
 
@@ -49,15 +66,17 @@ def run_daily_ingestion():
             # B. Filtros ("El Portero")
             league_id = fixture_data["league"]["id"]
             if league_id not in allowed: continue
-            
+
             api_id = str(fixture_data["fixture"]["id"])
-            
+
             # C. Datos Tácticos
+            # NOTA: ya no se descarta el partido si todavía no hay cuotas publicadas
+            # (algunos fixtures, sobre todo de torneos como el Mundial, no tienen odds
+            # hasta pocos días antes). Se guarda igual y `workers.py` las completa después
+            # vía `needs_full_update` en cuanto la API las publique.
             odds = football_service.get_odds(api_id)
             injuries = football_service.get_injuries(api_id)
             prediction = football_service.get_predictions(api_id)
-            
-            if not odds: continue
 
             # D. Mapeo
             match_obj = DataMapper.fixture_to_match(fixture_data, odds_data=odds)

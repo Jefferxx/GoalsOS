@@ -27,10 +27,22 @@ def run_ingestion_worker(dates: List[str], audit_mode: bool = False):
     """
     session = SessionLocal()
     football_service = RealFootballService()
-    
+
     processed_count = 0
     MAX_API_CALLS_SESSION = 85
+    QUOTA_SAFETY_MARGIN = 15
 
+    # Guard de cuota: en modo ingesta completa (no audit), abortar si queda poco
+    # margen de requests hoy, para no arriesgar un ban de la cuenta.
+    if not audit_mode:
+        status = football_service._get("status")
+        if status:
+            requests_info = status.get("requests", {})
+            remaining = requests_info.get("limit_day", 100) - requests_info.get("current", 0)
+            if remaining < QUOTA_SAFETY_MARGIN:
+                print(f"🛑 Cuota insuficiente ({remaining} restantes). Ingesta abortada por seguridad.")
+                session.close()
+                return f"Ingesta abortada: solo {remaining} requests restantes hoy"
 
     try:
         print(f"🦅 Worker V4 iniciado. Fechas: {dates}. AuditMode: {audit_mode}")
