@@ -1,7 +1,9 @@
 // apps/web/src/components/SyncButton.tsx
 "use client";
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function SyncButton() {
   const [loading, setLoading] = useState(false);
@@ -10,21 +12,23 @@ export default function SyncButton() {
     setLoading(true);
     try {
       await apiFetch("/test/ingest");
-      alert("Cosecha iniciada en segundo plano 🦅");
+      toast.success("Sincronización de mercados iniciada en segundo plano.");
     } catch (e) {
       console.error(e);
+      toast.error("Error al iniciar la sincronización.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <button 
+    <button
       onClick={handleSync}
       disabled={loading}
-      className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+      className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-200 px-3 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer"
     >
-      {loading ? "Sincronizando..." : "🔄 Sincronizar Mercados"}
+      <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+      {loading ? "Sincronizando..." : "Sincronizar"}
     </button>
   );
 }

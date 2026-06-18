@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Gauge } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 export default function ApiQuota() {
@@ -16,15 +17,15 @@ export default function ApiQuota() {
   const percentage = (quota.current / quota.limit) * 100;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg flex items-center gap-4">
-      <div className="text-xs font-bold text-slate-500 uppercase">API Credits</div>
-      <div className="flex-1 bg-slate-800 h-2 rounded-full overflow-hidden">
-        <div 
-          className={`h-full transition-all ${percentage > 80 ? 'bg-red-500' : 'bg-emerald-500'}`}
+    <div className="flex items-center gap-3 px-2">
+      <Gauge size={14} className="text-zinc-500" />
+      <div className="w-20 bg-zinc-800 h-1 rounded-full overflow-hidden">
+        <div
+          className={`h-full transition-all ${percentage > 80 ? "bg-red-600" : "bg-zinc-500"}`}
           style={{ width: `${percentage}%` }}
         ></div>
       </div>
-      <div className="text-xs font-mono text-slate-300">{quota.current}/{quota.limit}</div>
+      <span className="text-xs font-mono text-zinc-500">{quota.current}/{quota.limit}</span>
     </div>
   );
 }
