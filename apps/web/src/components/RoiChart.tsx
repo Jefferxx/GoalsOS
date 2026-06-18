@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
+import { Pencil } from "lucide-react";
+import { toast } from "sonner";
 import {
   AreaChart,
   Area,
@@ -67,7 +69,7 @@ export default function RoiChart() {
               walletData = await resWallet.json();
           }
       } catch (e) { console.error("Wallet fetch error", e); }
-      
+
       setStats(statsData);
       setCurrentBankroll(Number(walletData.bankroll));
 
@@ -91,12 +93,12 @@ export default function RoiChart() {
   // --- FUNCIÓN PARA SINCRONIZAR MANUALMENTE ---
   const handleManualSync = async () => {
     const newBalanceStr = window.prompt("Ingresa tu saldo real actual en Betano (Ej: 4.90):", currentBankroll.toString());
-    
+
     if (!newBalanceStr) return;
 
     const newBalance = parseFloat(newBalanceStr);
     if (isNaN(newBalance)) {
-        alert("Por favor ingresa un número válido.");
+        toast.warning("Por favor ingresa un número válido.");
         return;
     }
 
@@ -111,69 +113,65 @@ export default function RoiChart() {
 
         if (res.ok) {
             await fetchData(); // Recargar datos
-            alert("✅ Saldo sincronizado correctamente.");
+            toast.success("Saldo sincronizado correctamente.");
         } else {
-            alert("❌ Error al guardar el saldo.");
+            toast.error("Error al guardar el saldo.");
         }
     } catch (e) {
         console.error(e);
-        alert("Error de conexión con el servidor.");
+        toast.error("Error de conexión con el servidor.");
     }
   };
 
   if (loading) return (
-    <div className="h-full min-h-[300px] bg-slate-900 border border-slate-800 rounded-2xl p-6 animate-pulse flex flex-col justify-between">
+    <div className="h-full min-h-[300px] border border-zinc-800 rounded-xl p-6 animate-pulse flex flex-col justify-between">
       <div className="space-y-4">
-        <div className="h-4 w-32 bg-slate-800 rounded"></div>
-        <div className="h-12 w-48 bg-slate-800 rounded"></div>
+        <div className="h-4 w-32 bg-zinc-800 rounded"></div>
+        <div className="h-12 w-48 bg-zinc-800 rounded"></div>
       </div>
-      <div className="h-24 w-full bg-slate-800/30 rounded-lg mt-4"></div>
+      <div className="h-24 w-full bg-zinc-800/30 rounded-lg mt-4"></div>
     </div>
   );
 
   const safeStats = stats || DEFAULT_STATS;
   const isPositive = safeStats.net_profit >= 0;
-  
-  const colorHex = isPositive ? "#10b981" : "#ef4444"; 
-  const txtColor = isPositive ? "text-emerald-400" : "text-rose-500";
-  const bgGradient = isPositive 
-    ? "bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-900/20 via-slate-900 to-slate-900"
-    : "bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-rose-900/20 via-slate-900 to-slate-900";
-  const borderColor = isPositive ? "border-emerald-500/30" : "border-rose-500/30";
+
+  const colorHex = isPositive ? "#10b981" : "#dc2626";
+  const txtColor = isPositive ? "text-emerald-500" : "text-red-600";
 
   return (
-    <div className={`relative h-full min-h-[300px] w-full border ${borderColor} rounded-2xl overflow-hidden flex flex-col shadow-2xl ${bgGradient}`}>
-      
+    <div className="relative h-full min-h-[300px] w-full border border-zinc-800 rounded-xl overflow-hidden flex flex-col">
+
       {/* 1. HEADER */}
       <div className="relative z-20 px-6 pt-6 pb-2 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-            <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
+            <h3 className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
               Mi Banca Real
-              <button 
+              <button
                 onClick={handleManualSync}
-                className="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-[9px] text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
                 title="Ajustar saldo manualmente"
               >
-                ✎ Ajustar
+                <Pencil size={10} /> Ajustar
               </button>
             </h3>
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-mono font-bold text-white tracking-tight">
+                <span className="text-4xl font-mono font-bold text-zinc-50 tracking-tight">
                     ${currentBankroll.toFixed(2)}
                 </span>
-                <span className="text-sm text-slate-500 font-bold">USD</span>
+                <span className="text-sm text-zinc-600 font-bold">USD</span>
             </div>
         </div>
 
         <div className="text-right">
              <div className={`flex items-center justify-end gap-2 ${txtColor}`}>
-                <span className="text-3xl font-black tracking-tighter">
+                <span className="text-3xl font-bold tracking-tighter">
                     {/* PROTECCIÓN CONTRA NULOS: Usamos ?? 0 */}
                     {(safeStats.roi_percent ?? 0) > 0 ? "+" : ""}{(safeStats.roi_percent ?? 0).toFixed(1)}%
                 </span>
-                <span className="text-[10px] font-bold uppercase bg-slate-950/50 px-1.5 py-0.5 rounded border border-white/5">ROI</span>
+                <span className="text-[10px] font-bold uppercase text-zinc-600">ROI</span>
              </div>
-             <p className={`text-xs font-mono font-medium mt-1 ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
+             <p className={`text-xs font-mono font-medium mt-1 ${txtColor}`}>
                 {safeStats.net_profit > 0 ? "+" : ""}${safeStats.net_profit} Profit
              </p>
         </div>
@@ -185,16 +183,16 @@ export default function RoiChart() {
           <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={colorHex} stopOpacity={0.3} />
+                <stop offset="0%" stopColor={colorHex} stopOpacity={0.25} />
                 <stop offset="100%" stopColor={colorHex} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
             <XAxis dataKey="name" hide />
             <YAxis hide domain={['auto', 'auto']} />
-            <Tooltip 
+            <Tooltip
               cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
-              contentStyle={{ backgroundColor: "#020617", borderColor: "#1e293b", borderRadius: '8px' }}
+              contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: '8px' }}
               itemStyle={{ color: colorHex }}
               formatter={(value: number) => [`$${value.toFixed(2)}`, "Saldo"]}
             />
@@ -202,30 +200,30 @@ export default function RoiChart() {
               type="monotone"
               dataKey="balance"
               stroke={colorHex}
-              strokeWidth={3}
+              strokeWidth={2}
               fill="url(#chartGradient)"
               animationDuration={1500}
-              dot={{ r: 4, fill: colorHex, strokeWidth: 2, stroke: '#0f172a' }} 
-              activeDot={{ r: 6, strokeWidth: 0 }}
+              dot={{ r: 3, fill: colorHex, strokeWidth: 0 }}
+              activeDot={{ r: 5, strokeWidth: 0 }}
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
       {/* 3. FOOTER */}
-      <div className="relative z-20 bg-slate-950/40 backdrop-blur-md border-t border-white/5 p-3">
-        <div className="flex justify-around text-center divide-x divide-white/5">
+      <div className="relative z-20 border-t border-zinc-800 p-3">
+        <div className="flex justify-around text-center divide-x divide-zinc-800">
             <div className="w-full">
-                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Ganadas</p>
-                <p className="text-lg font-bold text-emerald-400">{safeStats.wins}</p>
+                <p className="text-[9px] text-zinc-600 uppercase font-bold tracking-widest">Ganadas</p>
+                <p className="text-lg font-bold text-emerald-500">{safeStats.wins}</p>
             </div>
             <div className="w-full">
-                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Perdidas</p>
-                <p className="text-lg font-bold text-rose-400">{safeStats.losses}</p>
+                <p className="text-[9px] text-zinc-600 uppercase font-bold tracking-widest">Perdidas</p>
+                <p className="text-lg font-bold text-red-600">{safeStats.losses}</p>
             </div>
             <div className="w-full">
-                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Efectividad</p>
-                <p className="text-lg font-bold text-blue-400">{safeStats.strike_rate}%</p>
+                <p className="text-[9px] text-zinc-600 uppercase font-bold tracking-widest">Efectividad</p>
+                <p className="text-lg font-bold text-zinc-300">{safeStats.strike_rate}%</p>
             </div>
         </div>
       </div>

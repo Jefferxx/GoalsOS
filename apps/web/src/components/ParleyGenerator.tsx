@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Target, RotateCcw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface ParleyPick {
@@ -33,17 +34,19 @@ export default function ParleyGenerator() {
   // Estado Inicial (Botón)
   if (!picks) {
     return (
-      <div className="bg-gradient-to-r from-violet-900/50 to-fuchsia-900/50 border border-violet-500/30 p-6 rounded-xl text-center">
-        <h3 className="text-violet-200 font-bold mb-2">🚀 Parley de Alta Probabilidad</h3>
-        <p className="text-xs text-violet-300/70 mb-4">
+      <div className="border border-zinc-800 p-6 rounded-xl text-center">
+        <h3 className="text-zinc-200 font-bold mb-2 flex items-center justify-center gap-2">
+          <Target size={16} className="text-emerald-500" /> Parley de Alta Probabilidad
+        </h3>
+        <p className="text-xs text-zinc-500 mb-4">
           Combina los 3 picks más seguros del día analizados por la IA.
         </p>
-        <button 
+        <button
           onClick={generateParley}
           disabled={loading}
-          className="bg-violet-600 hover:bg-violet-500 text-white px-6 py-2 rounded-full font-bold text-sm transition-all shadow-lg shadow-violet-900/50 flex items-center gap-2 mx-auto disabled:opacity-50"
+          className="bg-emerald-600 hover:bg-emerald-500 text-zinc-950 px-6 py-2 rounded-full font-bold text-sm transition-colors flex items-center gap-2 mx-auto disabled:opacity-50 cursor-pointer"
         >
-          {loading ? "Analizando..." : "🔮 Generar Parley del Día"}
+          {loading ? "Analizando..." : "Generar Parley del Día"}
         </button>
       </div>
     );
@@ -51,31 +54,33 @@ export default function ParleyGenerator() {
 
   // Estado con Resultados
   return (
-    <div className="bg-slate-900 border border-violet-500/50 p-5 rounded-xl relative overflow-hidden">
+    <div className="border border-zinc-800 p-5 rounded-xl">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-violet-400 font-bold text-sm uppercase tracking-wider">🎯 Parley Sugerido</h3>
-        <button 
+        <h3 className="text-zinc-200 font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+          <Target size={14} className="text-emerald-500" /> Parley Sugerido
+        </h3>
+        <button
             onClick={() => setPicks(null)}
-            className="text-slate-500 hover:text-white text-xs"
+            className="flex items-center gap-1 text-zinc-500 hover:text-zinc-200 text-xs cursor-pointer"
         >
-            ↻ Reset
+            <RotateCcw size={12} /> Reset
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {picks.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-4">
+            <p className="text-zinc-600 text-sm text-center py-4">
                 No hay suficientes partidos analizados con alta confianza hoy.
             </p>
         ) : (
             picks.map((pick, i) => (
-            <div key={i} className="bg-slate-950/50 p-3 rounded border border-slate-800 flex justify-between items-center">
+            <div key={i} className="border border-zinc-800 p-3 rounded flex justify-between items-center">
                 <div>
-                <div className="text-xs text-slate-400 mb-1">{pick.match}</div>
-                <div className="text-white font-bold text-sm text-emerald-400">{pick.selection}</div>
+                <div className="text-xs text-zinc-500 mb-1">{pick.match}</div>
+                <div className="text-zinc-50 font-bold text-sm">{pick.selection}</div>
                 </div>
                 <div className="text-right">
-                <span className="bg-emerald-900 text-emerald-300 text-xs px-2 py-1 rounded font-mono">
+                <span className="text-emerald-500 text-xs font-mono">
                     {pick.confidence}%
                 </span>
                 </div>
@@ -85,9 +90,8 @@ export default function ParleyGenerator() {
       </div>
 
       {picks.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-slate-800 text-center">
-            <p className="text-xs text-slate-500 mb-2">Copia estos picks en Betano</p>
-            {/* Aquí podríamos sumar las cuotas reales en el futuro */}
+        <div className="mt-4 pt-3 border-t border-zinc-800 text-center">
+            <p className="text-xs text-zinc-600">Copia estos picks en Betano</p>
         </div>
       )}
     </div>
