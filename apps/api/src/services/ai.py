@@ -1,10 +1,50 @@
 import os
 import json
-import re
+import time
+import threading
+import collections
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from groq import Groq
 from src.services.football.mapper import DataMapper
+
+# Límites del plan free de Gemini 3.1 Flash Lite (confirmados por el usuario)
+GEMINI_RPM_LIMIT = 15
+GEMINI_RPD_LIMIT = 500
+
+
+class _GeminiRateLimiter:
+    """Limitador en proceso: ventana deslizante de 60s para RPM + contador diario para RPD.
+    No reemplaza el rate limit real de Google, solo evita que GoalOS se autoinduzca
+    un 429 disparando más de lo permitido y cayendo a Groq innecesariamente."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._minute_window = collections.deque()
+        self._day = time.strftime("%Y-%m-%d")
+        self._day_count = 0
+
+    def allow(self) -> bool:
+        with self._lock:
+            now = time.time()
+            today = time.strftime("%Y-%m-%d")
+            if today != self._day:
+                self._day = today
+                self._day_count = 0
+
+            while self._minute_window and now - self._minute_window[0] > 60:
+                self._minute_window.popleft()
+
+            if len(self._minute_window) >= GEMINI_RPM_LIMIT or self._day_count >= GEMINI_RPD_LIMIT:
+                return False
+
+            self._minute_window.append(now)
+            self._day_count += 1
+            return True
+
+
+_gemini_limiter = _GeminiRateLimiter()
+
 
 class FootballAI:
     def __init__(self):
@@ -16,15 +56,18 @@ class FootballAI:
             try:
                 genai.configure(api_key=self.google_key)
                 self.model = genai.GenerativeModel(
-                    'models/gemini-flash-latest',
+                    'models/gemini-3.1-flash-lite',
                     safety_settings={
                         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
                         HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
                         HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
                         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                    }
+                    },
+                    generation_config=genai.GenerationConfig(
+                        response_mime_type="application/json",
+                    ),
                 )
-                print("✅ AI Service: Gemini Flash Latest configurado.")
+                print("✅ AI Service: Gemini 3.1 Flash Lite configurado (JSON mode).")
             except Exception as e:
                 print(f"⚠️ AI Service: Error configurando Gemini: {e}")
 
@@ -32,21 +75,21 @@ class FootballAI:
         home = getattr(match_data, 'home_team', None) or match_data.get('home_team')
         away = getattr(match_data, 'away_team', None) or match_data.get('away_team')
         league = getattr(match_data, 'league_name', None) or match_data.get('league_name')
-        
+
         context = DataMapper.get_ai_context(match_data)
-        
+
         prompt = f"""
         Actúa como un Matemático Deportivo de Élite especializado en Gestión de Riesgo (Kelly Criterion).
         OBJETIVO: Analizar este partido para encontrar valor matemático real.
-        
+
         EVENTO: {home} vs {away} ({league})
-        
+
         DATOS TÁCTICOS:
         1. FORMA/PREDICCIÓN: {context.get('form_analysis', 'Sin datos')}
         2. H2H: {context.get('h2h_trends', 'Sin datos')}
         3. LESIONES: {context.get('injury_report', 'Sin datos')}
         4. CUOTAS: {context.get('odds_summary', 'Sin datos')}
-        
+
         TU TAREA:
         1. Calcula probabilidad REAL (0.0 a 1.0).
         2. Genera un JSON PURO, SIN COMENTARIOS NI TEXTO EXTRA.
@@ -64,11 +107,18 @@ class FootballAI:
         """
 
         if self.model:
-            try:
-                response = self.model.generate_content(prompt)
-                return self._parse_json(response.text)
-            except Exception as e:
-                print(f"⚠️ Fallo Gemini: {e}")
+            if _gemini_limiter.allow():
+                try:
+                    response = self.model.generate_content(prompt)
+                    return self._parse_json(response.text)
+                except Exception as e:
+                    error_str = str(e)
+                    if "429" in error_str or "ResourceExhausted" in error_str or "quota" in error_str.lower():
+                        print(f"⚠️ Gemini: cuota/rate-limit excedido (429): {e}")
+                    else:
+                        print(f"⚠️ Fallo Gemini: {e}")
+            else:
+                print("⚠️ Gemini: límite interno RPM/RPD alcanzado, usando fallback Groq.")
 
         if self.groq_key:
             try:
@@ -77,7 +127,9 @@ class FootballAI:
                 completion = client.chat.completions.create(
                     model="llama-3.1-8b-instant",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2
+                    temperature=0.2,
+                    max_tokens=1024,
+                    response_format={"type": "json_object"},
                 )
                 return self._parse_json(completion.choices[0].message.content)
             except Exception as e:
@@ -89,15 +141,15 @@ class FootballAI:
         try:
             # 1. Limpieza agresiva de Markdown (```json ... ```)
             text = text.replace("```json", "").replace("```", "").strip()
-            
+
             # 2. Búsqueda del primer '{' y el último '}' para aislar el objeto JSON
             start = text.find("{")
             end = text.rfind("}") + 1
-            
+
             if start != -1 and end != 0:
                 text = text[start:end]
                 data = json.loads(text)
-                
+
                 # 3. Normalización de datos numéricos
                 # A veces la IA devuelve strings "60%" en vez de números 0.60
                 if 'win_probability' in data:
@@ -105,17 +157,17 @@ class FootballAI:
                         clean_prob = data['win_probability'].replace('%', '')
                         # Si es mayor a 1 (ej. 60), dividir por 100. Si es 0.60, dejar igual.
                         data['win_probability'] = float(clean_prob) / 100 if float(clean_prob) > 1 else float(clean_prob)
-                
+
                 return data
             else:
                 raise ValueError("No se encontraron llaves JSON {} en la respuesta")
-                
+
         except Exception as e:
             print(f"❌ Error parseando JSON de IA: {e}")
-            print(f"📄 Texto recibido (DEBUG): {text}") # Para ver qué nos mandó la IA realmente
+            print(f"📄 Texto recibido (DEBUG): {text}")  # Para ver qué nos mandó la IA realmente
             return {
                 "prediction": "Error Formato",
-                "selection_code": "X", # Default seguro (Empate) para no romper el frontend
+                "selection_code": "X",  # Default seguro (Empate) para no romper el frontend
                 "win_probability": 0,
                 "confidence": 0,
                 "reasoning": "La IA generó una respuesta no legible. Intenta analizar de nuevo.",
