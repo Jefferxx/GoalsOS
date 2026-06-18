@@ -11,11 +11,11 @@ from src.services.football.mapper import DataMapper
 # Importar desde aquí: from src.tasks.ingestion import PRIORITY_LEAGUES, ALLOWED_LEAGUES
 
 # Tier 1: Ligas top — se procesan primero por el sort de prioridad
-PRIORITY_LEAGUES = [2, 3, 39, 140, 135, 78, 61]
+PRIORITY_LEAGUES = [1, 2, 3, 39, 140, 135, 78, 61]  # 1 = Mundial FIFA
 
 # Todas las ligas autorizadas (Tier 1 + Tier 2 regionales)
 ALLOWED_LEAGUES = [
-    2, 3, 39, 140, 135, 78, 61,        # Tier 1: UCL, UEL, Premier, La Liga, Serie A, Bundesliga, Ligue 1
+    1, 2, 3, 39, 140, 135, 78, 61,     # Tier 1: Mundial, UCL, UEL, Premier, La Liga, Serie A, Bundesliga, Ligue 1
     71, 128, 239, 242, 106, 13, 11,    # Tier 2: Brasil, Ecuador, Copa Sudamericana...
     143, 66, 137, 96, 206, 45, 48,     # Tier 2: Ligas secundarias europeas
     848, 204, 83                        # Tier 2: Resto de competiciones
