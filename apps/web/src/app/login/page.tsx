@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { LogIn, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError("❌ Credenciales inválidas. Acceso denegado.");
+      setError("Credenciales inválidas. Acceso denegado.");
     } else {
       router.push("/"); // ¡Adentro!
       router.refresh();
@@ -30,41 +31,40 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-black bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">
-            GoalOS Enterprise
-          </h1>
-          <p className="text-slate-400 text-sm mt-2">Sistema de Acceso Restringido</p>
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-bold text-zinc-50">GoalOS</h1>
+          <p className="text-zinc-500 text-sm mt-2 tracking-widest uppercase">Sistema de Acceso Restringido</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded text-sm text-center">
+            <div className="flex items-center gap-2 text-red-500 text-sm justify-center">
+              <AlertCircle size={14} />
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Email Corporativo</label>
+            <label className="block text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">Email Corporativo</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded p-3 text-white focus:border-emerald-500 outline-none transition-colors"
+              className="w-full bg-transparent border-b border-zinc-800 p-3 text-zinc-50 focus:border-emerald-500 outline-none transition-colors"
               placeholder="admin@goalos.com"
               required
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Contraseña</label>
+            <label className="block text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">Contraseña</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded p-3 text-white focus:border-emerald-500 outline-none transition-colors"
+              className="w-full bg-transparent border-b border-zinc-800 p-3 text-zinc-50 focus:border-emerald-500 outline-none transition-colors"
               placeholder="••••••••"
               required
             />
@@ -72,9 +72,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded transition-all shadow-lg shadow-emerald-900/50"
+            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-bold py-3 rounded transition-colors"
           >
-            Iniciar Sesión 🔐
+            <LogIn size={16} />
+            Iniciar Sesión
           </button>
         </form>
       </div>
