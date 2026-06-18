@@ -1,4 +1,5 @@
 import React from 'react';
+import { Stethoscope } from 'lucide-react';
 
 interface Injury {
   player: {
@@ -37,7 +38,7 @@ export default function InjuryList({ injuriesJson }: InjuryListProps) {
     } else if (Array.isArray(injuriesJson)) {
       injuries = injuriesJson;
     }
-    
+
     // Si viene en formato wrapper 'response' de API-Football
     if (!Array.isArray(injuries) && (injuries as any).response) {
         injuries = (injuries as any).response;
@@ -50,29 +51,29 @@ export default function InjuryList({ injuriesJson }: InjuryListProps) {
   if (injuries.length === 0) return null;
 
   return (
-    <div className="mt-4 bg-red-950/20 border border-red-900/30 rounded-lg p-3">
-      <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-        🚑 Reporte Médico / Bajas
+    <div>
+      <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+        <Stethoscope size={13} /> Reporte Médico / Bajas
       </h4>
       <div className="space-y-2">
         {injuries.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-3 text-sm border-b border-red-900/20 last:border-0 pb-1 last:pb-0">
+          <div key={idx} className="flex items-center gap-3 text-sm border-b border-zinc-800 last:border-0 pb-2 last:pb-0">
             {/* Foto del jugador (opcional) */}
             {item.player.photo && (
-                <img 
-                    src={item.player.photo} 
-                    alt={item.player.name} 
-                    className="w-6 h-6 rounded-full object-cover bg-slate-800"
+                <img
+                    src={item.player.photo}
+                    alt={item.player.name}
+                    className="w-6 h-6 rounded-full object-cover bg-zinc-800"
                 />
             )}
-            
+
             <div className="flex-1">
-                <span className="text-slate-200 font-semibold">{item.player.name}</span>
-                <span className="text-slate-500 text-xs ml-2">({item.team.name})</span>
+                <span className="text-zinc-200 font-semibold">{item.player.name}</span>
+                <span className="text-zinc-500 text-xs ml-2">({item.team.name})</span>
             </div>
-            
+
             <div className="text-right">
-                <span className="text-red-300 text-xs px-2 py-0.5 bg-red-900/40 rounded">
+                <span className="text-red-600 text-xs">
                     {item.player.reason || item.player.type || "Baja"}
                 </span>
             </div>

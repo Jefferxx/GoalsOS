@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { calculateKellyStake, isValueBet } from "@/utils/kelly";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
+import { Sparkles, Gem, AlertTriangle, CheckCircle2, ArrowRight } from "lucide-react";
 
 interface BetButtonProps {
   matchApiId: string;
@@ -108,7 +109,7 @@ export default function BetButton({ matchApiId, selection, odds, aiProbability =
         router.refresh(); 
         // Actualizar bankroll visualmente de inmediato
         setBankroll(prev => prev - stake);
-        toast.success("🚀 ¡Apuesta registrada exitosamente!", { description: `Has invertido $${stake} en ${selection}` });
+        toast.success("¡Apuesta registrada exitosamente!", { description: `Has invertido $${stake} en ${selection}` });
       } else {
         const error = await res.json();
         toast.error("Error en la transacción", { description: error.detail || "Intenta nuevamente." });
@@ -120,57 +121,55 @@ export default function BetButton({ matchApiId, selection, odds, aiProbability =
     }
   };
 
-  if (checking) return <div className="text-xs text-slate-500 animate-pulse mt-4">Sincronizando billetera...</div>;
+  if (checking) return <div className="text-xs text-zinc-500 animate-pulse mt-4">Sincronizando billetera...</div>;
 
   // Si ya apostó, mostramos el recibo
   if (existingBet) {
     return (
-      <div className="mt-4 p-3 bg-emerald-900/20 border border-emerald-500/30 rounded-lg text-center shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-        <p className="text-emerald-400 font-bold text-[10px] uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
-            <span>✅</span> Inversión Activa
+      <div className="mt-4 p-3 border border-zinc-800 rounded-lg text-center">
+        <p className="text-emerald-500 font-bold text-[10px] uppercase tracking-widest mb-1 flex items-center justify-center gap-1">
+            <CheckCircle2 size={11} /> Inversión Activa
         </p>
-        <div className="text-sm text-white">
-            <span className="font-mono font-bold text-emerald-300">${existingBet.stake}</span> 
-            <span className="text-slate-500 mx-1">➜</span> 
-            <span className="italic text-slate-300">"{existingBet.selection}"</span>
+        <div className="text-sm text-zinc-200 flex items-center justify-center gap-1.5">
+            <span className="font-mono font-bold text-emerald-500">${existingBet.stake}</span>
+            <ArrowRight size={12} className="text-zinc-600" />
+            <span className="italic text-zinc-400">&quot;{existingBet.selection}&quot;</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mt-4 p-4 bg-slate-800/60 rounded-xl border border-slate-700/60 backdrop-blur-sm shadow-xl">
-      
-      {/* 🤖 SUGERENCIA DE LA IA (KELLY) */}
+    <div className="mt-4 p-4 border border-zinc-800 rounded-xl">
+
+      {/* SUGERENCIA DE LA IA (KELLY) */}
       {suggestion && suggestion.amount > 0 ? (
-        <div className="mb-4 flex items-center justify-between bg-blue-950/40 p-3 rounded-lg border border-blue-500/20 relative overflow-hidden transition-all hover:bg-blue-900/30 group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] group-hover:w-1.5 transition-all"></div>
-            <div className="flex flex-col z-10 pl-2">
-                <span className="text-[9px] text-blue-300 font-black uppercase tracking-widest mb-0.5 flex items-center gap-1">
-                    ✨ Sugerencia Kelly (15%)
+        <div className="mb-4 flex items-center justify-between border border-zinc-800 p-3 rounded-lg">
+            <div className="flex flex-col">
+                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1">
+                    <Sparkles size={10} /> Sugerencia Kelly (15%)
                 </span>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-300">
-                        Prob. IA: <span className="text-white font-bold">{(aiProbability * 100).toFixed(0)}%</span>
+                    <span className="text-xs text-zinc-400">
+                        Prob. IA: <span className="text-zinc-50 font-bold">{(aiProbability * 100).toFixed(0)}%</span>
                     </span>
                     {suggestion.isValue && (
-                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase font-bold animate-pulse">
-                            💎 Value Bet
+                        <span className="text-[8px] text-emerald-500 uppercase font-bold flex items-center gap-1">
+                            <Gem size={9} /> Value Bet
                         </span>
                     )}
                 </div>
             </div>
-            <div className="text-right z-10">
-                <span className="block text-xl font-mono font-black text-blue-400 tracking-tight drop-shadow-md">
+            <div className="text-right">
+                <span className="block text-xl font-mono font-bold text-emerald-500 tracking-tight">
                     ${suggestion.amount}
                 </span>
             </div>
         </div>
       ) : (
-        <div className="mb-4 p-2 text-center border border-dashed border-slate-700/50 rounded-lg bg-slate-900/30">
-             <span className="text-[10px] text-slate-500 uppercase tracking-widest">
-                {aiProbability > 0 ? "⚠️ Riesgo alto: No apostar (EV-)" : "Esperando análisis..."}
+        <div className="mb-4 p-2 text-center border border-dashed border-zinc-800 rounded-lg">
+             <span className="text-[10px] text-zinc-500 uppercase tracking-widest flex items-center justify-center gap-1.5">
+                {aiProbability > 0 ? (<><AlertTriangle size={11} className="text-red-600" /> Riesgo alto: No apostar (EV-)</>) : "Esperando análisis..."}
              </span>
         </div>
       )}
@@ -178,26 +177,26 @@ export default function BetButton({ matchApiId, selection, odds, aiProbability =
       {/* INPUT Y BOTÓN */}
       <div className="flex items-end gap-3">
         <div className="flex-1">
-          <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">Tu Inversión</label>
+          <label className="block text-[10px] text-zinc-500 uppercase font-bold mb-1.5">Tu Inversión</label>
           <div className="relative group">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono group-focus-within:text-emerald-500 transition-colors">$</span>
-              <input 
-                type="number" 
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono group-focus-within:text-emerald-500 transition-colors">$</span>
+              <input
+                type="number"
                 value={stake}
                 onChange={(e) => setStake(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2.5 pl-7 pr-3 text-white text-sm font-mono font-bold focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all placeholder-slate-700 shadow-inner"
+                className="w-full bg-transparent border border-zinc-800 rounded-lg py-2.5 pl-7 pr-3 text-zinc-50 text-sm font-mono font-bold focus:border-emerald-500 outline-none transition-colors placeholder-zinc-700"
                 placeholder="0.00"
               />
           </div>
         </div>
-        
+
         <button
           onClick={handleBet}
           disabled={loading || stake <= 0}
-          className={`h-[42px] px-6 rounded-lg font-bold text-sm shadow-lg transition-all transform active:scale-95 flex items-center gap-2 border ${
-            loading 
-              ? "bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed" 
-              : "bg-emerald-600 border-emerald-500 hover:bg-emerald-500 text-white shadow-emerald-900/40 hover:shadow-emerald-900/60"
+          className={`h-[42px] px-6 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 cursor-pointer ${
+            loading
+              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+              : "bg-emerald-600 hover:bg-emerald-500 text-zinc-950"
           }`}
         >
           {loading ? (
@@ -210,10 +209,10 @@ export default function BetButton({ matchApiId, selection, odds, aiProbability =
           )}
         </button>
       </div>
-      
+
       <div className="text-right mt-2 flex justify-end items-center gap-1">
-          <span className="text-[10px] text-slate-500">Saldo Disponible:</span>
-          <span className={`text-[10px] font-mono font-bold ${bankroll < stake ? "text-red-400" : "text-slate-300"}`}>
+          <span className="text-[10px] text-zinc-500">Saldo Disponible:</span>
+          <span className={`text-[10px] font-mono font-bold ${bankroll < stake ? "text-red-600" : "text-zinc-300"}`}>
             ${bankroll.toFixed(2)}
           </span>
       </div>

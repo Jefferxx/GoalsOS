@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Bot, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AnalyzeButton({ matchId }: { matchId: string }) {
   const [loading, setLoading] = useState(false);
@@ -15,16 +17,16 @@ export default function AnalyzeButton({ matchId }: { matchId: string }) {
       const res = await fetch(`http://localhost:8000/matches/${matchId}/analyze`, {
         method: "POST",
       });
-      
+
       if (res.ok) {
         // Si todo sale bien, recargamos la página para ver el análisis nuevo
         router.refresh();
       } else {
-        alert("Error al conectar con la IA");
+        toast.error("Error al conectar con la IA");
       }
     } catch (error) {
       console.error(error);
-      alert("Error de conexión");
+      toast.error("Error de conexión");
     } finally {
       setLoading(false);
     }
@@ -34,18 +36,20 @@ export default function AnalyzeButton({ matchId }: { matchId: string }) {
     <button
       onClick={handleAnalyze}
       disabled={loading}
-      className={`w-full font-bold py-3 rounded-lg transition-all shadow-lg mt-4 ${
+      className={`w-full flex items-center justify-center gap-2 font-bold py-3 rounded transition-colors mt-4 cursor-pointer ${
         loading
-          ? "bg-slate-700 text-slate-400 cursor-not-allowed"
-          : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/50"
+          ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+          : "bg-emerald-600 hover:bg-emerald-500 text-zinc-950"
       }`}
     >
       {loading ? (
-        <span className="flex items-center justify-center gap-2">
-          <span className="animate-spin">🔄</span> Analizando...
-        </span>
+        <>
+          <RefreshCw size={14} className="animate-spin" /> Analizando...
+        </>
       ) : (
-        "🤖 Solicitar Análisis IA"
+        <>
+          <Bot size={14} /> Solicitar Análisis IA
+        </>
       )}
     </button>
   );
