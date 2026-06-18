@@ -5,6 +5,7 @@ from fastapi.concurrency import run_in_threadpool
 
 # --- IMPORTS PROPIOS ---
 from src.db.session import init_db
+from src.celery_app import celery_app  # Registra esta app (Redis) como la "current app" de Celery
 from src.services.football.real_service import RealFootballService
 from src.routers import bets, wallet, matches, auth
 from src.routers import analysis
