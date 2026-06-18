@@ -6,6 +6,7 @@ from src.db.session import get_session
 from src.models.user import User
 from src.models.bet import Bet
 from src.models.match import Match # <--- IMPORTANTE: Necesario para el JOIN
+from src.utils.security import get_current_user
 
 router = APIRouter(prefix="/wallet", tags=["Wallet"])
 
@@ -15,7 +16,7 @@ class BankrollUpdate(BaseModel):
     new_balance: float
 
 @router.get("/{email}")
-def get_balance(email: str, session: Session = Depends(get_session)):
+def get_balance(email: str, session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """Obtiene el saldo actual del usuario."""
     user = session.exec(select(User).where(User.email == email)).first()
     if not user:
@@ -24,7 +25,7 @@ def get_balance(email: str, session: Session = Depends(get_session)):
 
 # --- NUEVO ENDPOINT DE ESTADÍSTICAS REALES ---
 @router.get("/stats/roi/{email}")
-def get_roi_stats(email: str, session: Session = Depends(get_session)):
+def get_roi_stats(email: str, session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """
     Calcula el ROI total, Profit/Loss y Strike Rate basado en historial real.
     """
@@ -73,7 +74,7 @@ def get_roi_stats(email: str, session: Session = Depends(get_session)):
 
 # --- NUEVO: HISTORIAL COMPLETO (JOIN) ---
 @router.get("/history/{email}")
-def get_betting_history(email: str, session: Session = Depends(get_session)):
+def get_betting_history(email: str, session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """Devuelve el historial de apuestas con los datos del partido asociado."""
     user = session.exec(select(User).where(User.email == email)).first()
     if not user:
@@ -108,25 +109,29 @@ def get_betting_history(email: str, session: Session = Depends(get_session)):
     return history_log
 
 @router.post("/sync")
-def sync_balance(data: BankrollUpdate, session: Session = Depends(get_session)):
+def sync_balance(data: BankrollUpdate, session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """
     Sincronización Manual: Fuerza el saldo de GoalOS para que coincida con Betano.
     """
     user = session.exec(select(User).where(User.email == data.user_email)).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
+
     # Actualizamos el saldo
     previous = user.bankroll
     user.bankroll = data.new_balance
-    
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    
+
+    try:
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Error sincronizando el saldo. No se aplicó el cambio: {e}")
+
     return {
-        "status": "Sincronizado", 
-        "previous": previous, 
+        "status": "Sincronizado",
+        "previous": previous,
         "current": user.bankroll,
         "message": "Tu banca ahora coincide con la realidad."
     }

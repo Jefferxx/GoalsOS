@@ -8,6 +8,7 @@ from src.models.bet import Bet
 from src.models.match import Match
 from src.models.user import User
 from src.utils.notifications import send_telegram_alert
+from src.utils.security import get_current_user
 
 router = APIRouter(prefix="/bets", tags=["Bets"])
 
@@ -23,7 +24,7 @@ class BetCreate(BaseModel):
 # --- ENDPOINTS ---
 
 @router.post("/", response_model=Bet)
-def create_bet(bet_data: BetCreate, session: Session = Depends(get_session)):
+def create_bet(bet_data: BetCreate, session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """
     Registra una apuesta con TRANSACCIONALIDAD ATÓMICA.
     Garantiza que el saldo solo se descuente si la apuesta se crea correctamente.
@@ -111,7 +112,7 @@ def create_bet(bet_data: BetCreate, session: Session = Depends(get_session)):
     return new_bet
 
 @router.get("/check/{match_api_id}/{user_email}")
-def check_bet_status(match_api_id: str, user_email: str, session: Session = Depends(get_session)):
+def check_bet_status(match_api_id: str, user_email: str, session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """
     Endpoint para que el Frontend verifique el estado de una apuesta.
     """
@@ -135,13 +136,13 @@ def check_bet_status(match_api_id: str, user_email: str, session: Session = Depe
     return {"has_bet": False}
 
 @router.get("/", response_model=List[Bet])
-def get_bets(session: Session = Depends(get_session)):
+def get_bets(session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """Lista todas las apuestas registradas."""
     bets = session.exec(select(Bet)).all()
     return bets
 
 @router.get("/parley/generate")
-def generate_parley(limit: int = 3, min_confidence: int = 75, session: Session = Depends(get_session)):
+def generate_parley(limit: int = 3, min_confidence: int = 75, session: Session = Depends(get_session), current_user: dict = Depends(get_current_user)):
     """
     Generador de Parleys optimizado.
     Filtra los partidos con mayor confianza de análisis de IA.
