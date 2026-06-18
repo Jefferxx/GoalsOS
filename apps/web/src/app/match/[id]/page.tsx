@@ -7,6 +7,7 @@ import UserMenu from "@/components/UserMenu";
 import AnalyzeButton from "@/components/AnalyzeButton";
 import BetButton from "@/components/BetButton";
 import InjuryList from "@/components/InjuryList";
+import TeamFormPanel from "@/components/TeamFormPanel";
 import {
   ArrowLeft,
   SearchX,
@@ -36,6 +37,8 @@ interface MatchDetail {
   api_id: string;
   home_team: string;
   away_team: string;
+  home_team_id?: number;
+  away_team_id?: number;
   league_name: string;
   date: string;
   status: string;
@@ -277,6 +280,14 @@ export default function MatchPage() {
             Cuotas: {match.odds_data ? 'Sincronizadas' : 'No Disponibles'}
           </span>
         </div>
+
+        {/* 3. FORMA RECIENTE POR EQUIPO (a pedido, con caché) */}
+        <TeamFormPanel
+            homeTeamId={match.home_team_id}
+            awayTeamId={match.away_team_id}
+            homeTeamName={match.home_team}
+            awayTeamName={match.away_team}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
