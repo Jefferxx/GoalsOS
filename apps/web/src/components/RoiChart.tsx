@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
 import {
   AreaChart,
   Area,
@@ -49,21 +50,19 @@ export default function RoiChart() {
 
   const fetchData = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      
       // 1. Obtener Stats (Puede fallar si es usuario nuevo)
       let statsData = DEFAULT_STATS;
       try {
-          const resStats = await fetch(`${apiUrl}/wallet/stats/roi/${session?.user?.email}`);
+          const resStats = await apiFetch(`/wallet/stats/roi/${session?.user?.email}`);
           if (resStats.ok) {
               statsData = await resStats.json();
           }
       } catch (e) { console.warn("No stats found yet"); }
-      
+
       // 2. Obtener Wallet (Siempre debería existir si el usuario existe)
       let walletData = { bankroll: 0 };
       try {
-          const resWallet = await fetch(`${apiUrl}/wallet/${session?.user?.email}`);
+          const resWallet = await apiFetch(`/wallet/${session?.user?.email}`);
           if (resWallet.ok) {
               walletData = await resWallet.json();
           }
@@ -102,10 +101,8 @@ export default function RoiChart() {
     }
 
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const res = await fetch(`${apiUrl}/wallet/sync`, {
+        const res = await apiFetch(`/wallet/sync`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 user_email: session?.user?.email,
                 new_balance: newBalance

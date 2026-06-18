@@ -1,6 +1,7 @@
 // apps/web/src/components/SyncButton.tsx
 "use client";
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function SyncButton() {
   const [loading, setLoading] = useState(false);
@@ -8,7 +9,7 @@ export default function SyncButton() {
   const handleSync = async () => {
     setLoading(true);
     try {
-      await fetch("http://localhost:8000/test/ingest");
+      await apiFetch("/test/ingest");
       alert("Cosecha iniciada en segundo plano 🦅");
     } catch (e) {
       console.error(e);

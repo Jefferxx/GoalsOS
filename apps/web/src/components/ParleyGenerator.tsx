@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 interface ParleyPick {
   match: string;
@@ -16,9 +17,8 @@ export default function ParleyGenerator() {
   const generateParley = async () => {
     setLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       // Pedimos un parley de 3 picks con confianza > 70%
-      const res = await fetch(`${apiUrl}/bets/parley/generate?limit=3&min_confidence=70`);
+      const res = await apiFetch(`/bets/parley/generate?limit=3&min_confidence=70`);
       if (res.ok) {
         const data = await res.json();
         setPicks(data.picks);

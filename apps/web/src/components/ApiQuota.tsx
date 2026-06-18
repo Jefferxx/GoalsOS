@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function ApiQuota() {
   const [quota, setQuota] = useState({ current: 0, limit: 100 });
 
   useEffect(() => {
     const fetchQuota = async () => {
-      const res = await fetch("http://localhost:8000/api-status");
+      const res = await apiFetch("/api-status");
       if (res.ok) setQuota(await res.json());
     };
     fetchQuota();

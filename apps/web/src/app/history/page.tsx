@@ -4,6 +4,7 @@ import Link from "next/link";
 import UserMenu from "@/components/UserMenu";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 // Interfaz actualizada con audit_reason
 interface HistoryItem {
@@ -33,9 +34,8 @@ export default function HistoryPage() {
 
   const fetchHistory = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       // Usamos el nuevo endpoint que hace el JOIN
-      const res = await fetch(`${apiUrl}/wallet/history/${session?.user?.email}`);
+      const res = await apiFetch(`/wallet/history/${session?.user?.email}`);
       if (res.ok) {
         const data = await res.json();
         setHistory(data);

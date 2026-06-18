@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function AuditButton() {
   const [loading, setLoading] = useState(false);
@@ -10,11 +11,11 @@ export default function AuditButton() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("http://localhost:8000/audit/run");
+      const res = await apiFetch("/audit/run");
       const data = await res.json();
       
-      if (data.bets_settled > 0) {
-        setResult(`✅ ${data.bets_settled} apuestas liquidadas.`);
+      if (data.processed > 0) {
+        setResult(`✅ ${data.processed} apuestas liquidadas.`);
         // Recargar la página para ver el nuevo saldo
         setTimeout(() => window.location.reload(), 2000);
       } else {

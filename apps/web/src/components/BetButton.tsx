@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { calculateKellyStake, isValueBet } from "@/utils/kelly";
+import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 
 interface BetButtonProps {
@@ -49,12 +50,10 @@ export default function BetButton({ matchApiId, selection, odds, aiProbability =
 
   const checkStatus = async () => {
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        
         // Llamadas paralelas: Verificar apuesta Y obtener saldo actual
         const [resBet, resWallet] = await Promise.all([
-            fetch(`${apiUrl}/bets/check/${matchApiId}/${session?.user?.email}`),
-            fetch(`${apiUrl}/wallet/${session?.user?.email}`)
+            apiFetch(`/bets/check/${matchApiId}/${session?.user?.email}`),
+            apiFetch(`/wallet/${session?.user?.email}`)
         ]);
 
         if (resBet.ok) {
@@ -91,10 +90,8 @@ export default function BetButton({ matchApiId, selection, odds, aiProbability =
 
     setLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/bets/`, {
+      const res = await apiFetch(`/bets/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           match_api_id: matchApiId,
           user_email: session.user.email,
