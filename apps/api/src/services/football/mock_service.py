@@ -107,3 +107,29 @@ class MockFootballService(FootballDataService):
                 "startXI": [{"player": {"id": 2, "name": "Pope", "number": 1, "pos": "G"}}]
             }
         }
+
+    def get_fixture_by_id(self, fixture_id: str) -> Optional[Dict]:
+        """Simula el detalle (con marcador por tiempo) de un fixture puntual."""
+        return {
+            "fixture": {"id": int(fixture_id), "date": "2026-06-01T20:00:00+00:00", "status": {"short": "FT"}},
+            "league": {"id": 39, "name": "Premier League"},
+            "teams": {
+                "home": {"id": 1, "name": "Mock FC"},
+                "away": {"id": 2, "name": "Rival FC"},
+            },
+            "goals": {"home": 2, "away": 1},
+            "score": {"halftime": {"home": 1, "away": 0}, "fulltime": {"home": 2, "away": 1}},
+        }
+
+    def get_fixture_statistics(self, fixture_id: str) -> List[Dict]:
+        """Simula estadísticas (corners, tarjetas) de un partido."""
+        return [
+            {"team": {"id": 1}, "statistics": [
+                {"type": "Corner Kicks", "value": 5},
+                {"type": "Yellow Cards", "value": 2},
+            ]},
+            {"team": {"id": 2}, "statistics": [
+                {"type": "Corner Kicks", "value": 4},
+                {"type": "Yellow Cards", "value": 1},
+            ]},
+        ]

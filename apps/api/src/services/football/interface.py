@@ -31,3 +31,13 @@ class FootballDataService(ABC):
     def get_predictions(self, fixture_id: str) -> Optional[Dict]:
         """Obtiene la predicción matemática de la API"""
         pass
+
+    @abstractmethod
+    def get_fixture_by_id(self, fixture_id: str) -> Optional[Dict]:
+        """Obtiene el detalle de un fixture puntual (incluye marcador por tiempo)"""
+        pass
+
+    @abstractmethod
+    def get_fixture_statistics(self, fixture_id: str) -> List[Dict]:
+        """Obtiene estadísticas (corners, tarjetas, etc.) de un partido"""
+        pass

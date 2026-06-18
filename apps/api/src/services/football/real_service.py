@@ -1,6 +1,6 @@
 import requests
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class RealFootballService:
     def __init__(self):
@@ -63,3 +63,16 @@ class RealFootballService:
     def get_lineups(self, fixture_id: str) -> List[Dict]:
         """Obtiene alineaciones confirmadas"""
         return self._get("fixtures/lineups", {"fixture": fixture_id}) or []
+
+    def get_fixture_by_id(self, fixture_id: str) -> Optional[Dict]:
+        """
+        Obtiene el detalle de un fixture puntual por su id (incluye marcador
+        por tiempo). A diferencia de /fixtures?team=, consultar por id no
+        requiere "season" ni está restringido por el plan free.
+        """
+        data = self._get("fixtures", {"id": fixture_id})
+        return data[0] if isinstance(data, list) and data else None
+
+    def get_fixture_statistics(self, fixture_id: str) -> List[Dict]:
+        """Obtiene estadísticas (corners, tarjetas, etc.) de un partido"""
+        return self._get("fixtures/statistics", {"fixture": fixture_id}) or []

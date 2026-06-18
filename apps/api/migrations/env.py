@@ -16,6 +16,8 @@ sys.path.append(os.getcwd())
 
 from src.models.match import Match
 from src.models.user import User  # Importamos User también por si acaso
+from src.models.bet import Bet  # Faltaba: Alembic detectaba "bets" como tabla a eliminar
+from src.models.team_form_cache import TeamFormCache
 
 # -------------------------------------------------------------------------
 # 2. CONFIGURACIÓN DE ALEMBIC
