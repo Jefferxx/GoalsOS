@@ -354,12 +354,11 @@ export default function MatchPage() {
                     <div className="border-t border-slate-800 pt-6">
                         <h3 className="text-sm font-bold text-white mb-2">💰 Ejecución</h3>
                         {analysisData ? (
-                            <BetButton 
+                            <BetButton
                                 matchApiId={match.api_id}
                                 selection={analysisData.prediction}
                                 odds={getOddsValue(analysisData.selection_code, match.odds_data)}
-                                winProb={analysisData.win_probability || 0}
-                                confidence={analysisData.confidence || 0}
+                                aiProbability={analysisData.win_probability || 0}
                             />
                         ) : (
                             <button disabled className="w-full py-3 bg-slate-800 text-slate-500 font-bold rounded-lg cursor-not-allowed text-xs uppercase tracking-widest border border-slate-700">

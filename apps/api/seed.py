@@ -16,14 +16,12 @@ def create_fake_matches():
         home_team_id=541, away_team_id=50,
         status="NS",
         
-        # Simulamos datos del Plan PRO ($19)
-        pro_data={
-            "referee": "Szymon Marciniak",
-            "injuries": ["Courtois (Duda)", "De Bruyne (Baja)"],
-            "lineups_available": True,
-            "weather": "Clear, 22°C"
-        },
-        
+        # Simulamos bajas (campo injuries del modelo)
+        injuries=[
+            {"player": "Courtois", "reason": "Duda", "type": "Questionable"},
+            {"player": "De Bruyne", "reason": "Baja", "type": "Missing Fixture"}
+        ],
+
         # Simulamos Cuotas
         odds_data={
             "1x2": {"1": 2.80, "X": 3.50, "2": 2.45},
@@ -51,7 +49,6 @@ def create_fake_matches():
         home_team="Getafe", away_team="Leganés",
         home_team_id=540, away_team_id=530,
         status="NS",
-        pro_data={"lineups_available": False},
         odds_data={"1x2": {"1": 2.10, "X": 2.90, "2": 3.80}},
         ai_analysis={
             "summary": "Partido trabado, poco valor.",

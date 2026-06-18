@@ -35,4 +35,7 @@ Thumbs.db
 docker-compose.override.yml
 .aider*
 
+# --- CELERY (estado local, no debe versionarse) ---
+apps/api/celerybeat-schedule
+
 .env

@@ -64,7 +64,7 @@ def run_ingestion_worker(dates: List[str], audit_mode: bool = False):
                 
                 if audit_mode:
                     if existing_match:
-                        if existing_match.status != current_status or existing_match.home_score != home_score:
+                        if existing_match.status != current_status or existing_match.home_score != home_score or existing_match.away_score != away_score:
                             existing_match.status = current_status
                             existing_match.home_score = home_score
                             existing_match.away_score = away_score
@@ -102,7 +102,7 @@ def run_ingestion_worker(dates: List[str], audit_mode: bool = False):
                     session.commit()
                 
                 elif existing_match:
-                    if existing_match.status != current_status or existing_match.home_score != home_score:
+                    if existing_match.status != current_status or existing_match.home_score != home_score or existing_match.away_score != away_score:
                         existing_match.status = current_status
                         existing_match.home_score = home_score
                         existing_match.away_score = away_score

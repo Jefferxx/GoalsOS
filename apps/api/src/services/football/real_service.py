@@ -49,7 +49,7 @@ class RealFootballService:
         """Obtiene cuotas de Bet365 (ID 1)"""
         # Nota: El plan free a veces limita las odds pre-match a 7 días antes.
         data = self._get("odds", {"fixture": fixture_id, "bookmaker": "1"})
-        return data[0] if data else None
+        return data[0] if isinstance(data, list) and data else None
 
     def get_injuries(self, fixture_id: str) -> List[Dict]:
         """Obtiene reporte médico"""
@@ -58,7 +58,7 @@ class RealFootballService:
     def get_predictions(self, fixture_id: str) -> Dict:
         """Obtiene análisis matemático de la API"""
         data = self._get("predictions", {"fixture": fixture_id})
-        return data[0] if data else None
+        return data[0] if isinstance(data, list) and data else None
         
     def get_lineups(self, fixture_id: str) -> List[Dict]:
         """Obtiene alineaciones confirmadas"""
