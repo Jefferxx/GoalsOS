@@ -1,26 +1,29 @@
 "use client"; // Esto es obligatorio para usar onClick
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Bot, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 
-export default function AnalyzeButton({ matchId }: { matchId: string }) {
+interface AnalyzeButtonProps {
+  matchId: string;
+  onAnalyzeComplete?: () => void | Promise<void>;
+}
+
+export default function AnalyzeButton({ matchId, onAnalyzeComplete }: AnalyzeButtonProps) {
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const handleAnalyze = async () => {
     setLoading(true);
     try {
-      // Usamos localhost:8000 porque este fetch ocurre en TU navegador (Cliente),
-      // no en el servidor de Docker.
-      const res = await fetch(`http://localhost:8000/matches/${matchId}/analyze`, {
-        method: "POST",
-      });
+      const res = await apiFetch(`/matches/${matchId}/analyze`, { method: "POST" });
 
       if (res.ok) {
-        // Si todo sale bien, recargamos la página para ver el análisis nuevo
-        router.refresh();
+        await onAnalyzeComplete?.();
+      } else if (res.status === 429) {
+        toast.error("Demasiados análisis seguidos", { description: "Espera un momento antes de intentar de nuevo." });
+      } else if (res.status === 401) {
+        toast.error("Sesión expirada", { description: "Vuelve a iniciar sesión para analizar partidos." });
       } else {
         toast.error("Error al conectar con la IA");
       }
