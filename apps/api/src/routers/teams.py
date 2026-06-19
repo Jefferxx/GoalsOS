@@ -1,7 +1,7 @@
 import time
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlmodel import Session, select, or_
 
@@ -10,6 +10,7 @@ from src.models.match import Match
 from src.models.team_form_cache import TeamFormCache
 from src.services.football.real_service import RealFootballService
 from src.utils.security import get_current_user
+from src.utils.rate_limit import limiter
 
 router = APIRouter(prefix="/teams", tags=["Teams"])
 
@@ -106,7 +107,9 @@ def _compute_form(session: Session, team_id: int, last: int) -> dict:
 
 
 @router.get("/{team_id}/recent-form")
+@limiter.limit("20/minute")
 async def get_team_recent_form(
+    request: Request,
     team_id: int,
     last: int = 5,
     session: Session = Depends(get_session),
