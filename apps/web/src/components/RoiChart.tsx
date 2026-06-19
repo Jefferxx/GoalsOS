@@ -194,7 +194,7 @@ export default function RoiChart() {
               cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
               contentStyle={{ backgroundColor: "#09090b", borderColor: "#27272a", borderRadius: '8px' }}
               itemStyle={{ color: colorHex }}
-              formatter={(value: number) => [`$${value.toFixed(2)}`, "Saldo"]}
+              formatter={(value: number | undefined) => [`$${(value ?? 0).toFixed(2)}`, "Saldo"]}
             />
             <Area
               type="monotone"
