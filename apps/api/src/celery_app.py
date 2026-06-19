@@ -37,7 +37,11 @@ celery_app.conf.beat_schedule = {
         "task": "src.tasks.workers.scheduled_audit_job",
         "schedule": crontab(hour=4, minute=55), # 23:55 PM Ecuador (UTC-5)
     },
+    "pregame-auto-analysis": {
+        "task": "src.tasks.pregame.scan_upcoming_kickoffs",
+        "schedule": crontab(minute="*/10"), # cada 10 min, busca partidos a 20-40min del kickoff
+    },
 }
 
 # Auto-descubrir tareas en carpetas
-celery_app.autodiscover_tasks(["src.tasks.ingestion", "src.tasks.workers"])
+celery_app.autodiscover_tasks(["src.tasks.ingestion", "src.tasks.workers", "src.tasks.pregame"])
