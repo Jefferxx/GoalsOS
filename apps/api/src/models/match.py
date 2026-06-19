@@ -53,6 +53,12 @@ class Match(SQLModel, table=True):
     # 6. Auditoría
     accuracy_log: Optional[Dict] = Field(default=None, sa_column=Column(JSONB))
 
+    # 7. Estadísticas post-partido (corners/tarjetas/posesión) — get_fixture_statistics()
+    statistics: Optional[List[Dict]] = Field(default=None, sa_column=Column(JSONB))
+
+    # 8. Marca si ya corrió el auto-análisis pre-partido (30min antes, con alineaciones)
+    auto_analyzed: bool = Field(default=False)
+
     # Fechas de control
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
