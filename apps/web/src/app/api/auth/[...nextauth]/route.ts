@@ -10,9 +10,12 @@ const handler = NextAuth({
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials, req) {
-        // 1. Llamamos a TU Backend (FastAPI) desde el servidor de Next.js
-        // Usamos "http://api:8000" porque estamos dentro de la red Docker
-        const res = await fetch("http://api:8000/auth/login", {
+        // 1. Llamamos a TU Backend (FastAPI) desde el servidor de Next.js.
+        // API_INTERNAL_URL (solo servidor) permite usar el hostname interno
+        // de Docker en dev (http://api:8000) sin afectar producción, donde
+        // no existe esa red y se cae al mismo NEXT_PUBLIC_API_URL que usa el navegador.
+        const apiUrl = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const res = await fetch(`${apiUrl}/auth/login`, {
           method: "POST",
           body: JSON.stringify({
             email: credentials?.email,

@@ -98,6 +98,9 @@ services:
       - .env
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # Solo servidor: dentro de la red de Docker, "localhost" del contenedor web
+      # no llega al contenedor api. NextAuth (server-side) usa este host interno.
+      - API_INTERNAL_URL=http://api:8000
       - NEXTAUTH_URL=http://localhost:3000
       # ✅ REFERENCIA SEGURA: Lee del archivo .env local (antes hardcodeado)
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
