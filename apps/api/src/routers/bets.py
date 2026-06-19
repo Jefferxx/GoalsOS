@@ -166,32 +166,23 @@ def generate_parley(limit: int = 3, min_confidence: int = 75, session: Session =
                 analysis = json.loads(m.ai_analysis)
             else:
                 analysis = m.ai_analysis
-            
-            confidence = analysis.get("confidence", 0)
-            
-            if confidence >= min_confidence:
-                # Extraemos la predicción principal del nuevo formato
-                prediction = analysis.get("prediction", "N/A")
-                reason = analysis.get("reasoning", "Análisis de alta probabilidad")
-                
-                # Intentamos sacar una cuota aproximada del JSON de odds si existe
-                home_win_odd = 0.0
-                try:
-                    if m.odds_data and isinstance(m.odds_data, str):
-                        odds_json = json.loads(m.odds_data)
-                        # Lógica simple para extraer cuota (mejorar con TacticalRefinery si es necesario)
-                        # Por ahora placeholder 0.0 si no se parsea fácil
-                        pass 
-                except: pass
 
-                safe_picks.append({
-                    "match": f"{m.home_team} vs {m.away_team}",
-                    "selection": prediction,
-                    "confidence": confidence,
-                    "reason": reason,
-                    "odds": 0.0 # Placeholder, el frontend lo muestra si es > 0
-                })
-        except Exception as e: 
+            # Shape nuevo: {"summary", "picks": [{market, selection, probability, confidence, reasoning, ...}]}
+            picks = analysis.get("picks", [])
+            eligible = [p for p in picks if p.get("confidence", 0) >= min_confidence]
+            if not eligible:
+                continue
+
+            best_pick = max(eligible, key=lambda p: p.get("confidence", 0))
+
+            safe_picks.append({
+                "match": f"{m.home_team} vs {m.away_team}",
+                "selection": f"{best_pick.get('market', 'N/A')}: {best_pick.get('selection', 'N/A')}",
+                "confidence": best_pick.get("confidence", 0),
+                "reason": best_pick.get("reasoning", "Análisis de alta probabilidad"),
+                "odds": 0.0  # Placeholder, el frontend lo muestra si es > 0
+            })
+        except Exception as e:
             print(f"Error generando parley para match {m.id}: {e}")
             continue
             
