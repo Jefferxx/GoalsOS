@@ -4,6 +4,7 @@ import time
 import threading
 import collections
 import datetime
+import asyncio
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from groq import Groq
@@ -91,8 +92,12 @@ class FootballAI:
         away_rates = {"corners_lambda": None, "cards_lambda": None, "first_half_ratio": 0.45}
         if session is not None and match.home_team_id and match.away_team_id:
             try:
-                home_rates = get_team_market_rates(session, match.home_team_id)
-                away_rates = get_team_market_rates(session, match.away_team_id)
+                # Secuencial (no asyncio.gather): get_team_market_rates puede bloquear
+                # con time.sleep en cache-miss, y comparten la misma Session de SQLAlchemy
+                # (no es thread-safe para uso concurrente) — to_thread evita bloquear el
+                # event loop sin arriesgar dos hilos tocando la sesión a la vez.
+                home_rates = await asyncio.to_thread(get_team_market_rates, session, match.home_team_id)
+                away_rates = await asyncio.to_thread(get_team_market_rates, session, match.away_team_id)
             except Exception as e:
                 print(f"⚠️ No se pudieron derivar λ de corners/tarjetas: {e}")
 
