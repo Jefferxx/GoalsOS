@@ -3,10 +3,16 @@ import json
 import time
 import threading
 import collections
+import datetime
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from groq import Groq
+from sqlmodel import Session
+
 from src.services.football.mapper import DataMapper
+from src.services.football.team_form import get_team_market_rates
+from src.services.math.poisson import PoissonEngine
+from src.services.math.xg_resolver import resolve_match_lambdas
 
 # Límites del plan free de Gemini 3.1 Flash Lite (confirmados por el usuario)
 GEMINI_RPM_LIMIT = 15
@@ -51,6 +57,7 @@ class FootballAI:
         self.google_key = os.getenv("GOOGLE_API_KEY")
         self.groq_key = os.getenv("GROQ_API_KEY")
         self.model = None
+        self.poisson_engine = PoissonEngine()
 
         if self.google_key:
             try:
@@ -71,46 +78,106 @@ class FootballAI:
             except Exception as e:
                 print(f"⚠️ AI Service: Error configurando Gemini: {e}")
 
-    def analyze_match(self, match_data):
+    async def _compute_candidate_picks(self, match, session: Session = None) -> list[dict]:
+        """
+        Capa estadística real (no inventada por el LLM): resuelve λ de goles
+        (Understat → xG implícito → neutral) y λ propios de corners/tarjetas
+        por equipo (histórico de GoalOS), y corre el PoissonEngine extendido.
+        """
+        lambda_home, lambda_away, _, _ = await resolve_match_lambdas(match)
+        lambda_home_adj = lambda_home * 1.10  # ventaja de local, igual que /analysis/predict
+
+        home_rates = {"corners_lambda": None, "cards_lambda": None, "first_half_ratio": 0.45}
+        away_rates = {"corners_lambda": None, "cards_lambda": None, "first_half_ratio": 0.45}
+        if session is not None and match.home_team_id and match.away_team_id:
+            try:
+                home_rates = get_team_market_rates(session, match.home_team_id)
+                away_rates = get_team_market_rates(session, match.away_team_id)
+            except Exception as e:
+                print(f"⚠️ No se pudieron derivar λ de corners/tarjetas: {e}")
+
+        return self.poisson_engine.analyze_full(
+            lambda_home=lambda_home_adj,
+            lambda_away=lambda_away,
+            corners_lambda_home=home_rates.get("corners_lambda"),
+            corners_lambda_away=away_rates.get("corners_lambda"),
+            cards_lambda_home=home_rates.get("cards_lambda"),
+            cards_lambda_away=away_rates.get("cards_lambda"),
+            first_half_ratio_home=home_rates.get("first_half_ratio", 0.45),
+            first_half_ratio_away=away_rates.get("first_half_ratio", 0.45),
+        )
+
+    async def analyze_match(self, match_data, session: Session = None):
+        """
+        Motor de picks múltiples: el PoissonEngine calcula las probabilidades
+        reales de cada mercado (ganador, goles totales/por equipo, BTTS,
+        corners, tarjetas, 1ª mitad); la IA solo selecciona los más sólidos,
+        les agrega riesgo/razón y los ordena — no inventa probabilidades.
+        """
         home = getattr(match_data, 'home_team', None) or match_data.get('home_team')
         away = getattr(match_data, 'away_team', None) or match_data.get('away_team')
         league = getattr(match_data, 'league_name', None) or match_data.get('league_name')
 
         context = DataMapper.get_ai_context(match_data)
 
+        try:
+            candidate_picks = await self._compute_candidate_picks(match_data, session)
+        except Exception as e:
+            print(f"⚠️ Motor Poisson no disponible para este partido: {e}")
+            candidate_picks = []
+
+        if not candidate_picks:
+            return {
+                "summary": "Datos insuficientes para calcular picks estadísticos de este partido.",
+                "generated_at": datetime.datetime.utcnow().isoformat(),
+                "picks": [],
+            }
+
+        picks_table = "\n".join(
+            f"- {p['market']} · {p['selection']}: {p['probability']:.0%}"
+            for p in candidate_picks[:12]
+        )
+
         prompt = f"""
-        Actúa como un Matemático Deportivo de Élite especializado en Gestión de Riesgo (Kelly Criterion).
-        OBJETIVO: Analizar este partido para encontrar valor matemático real.
+        Actúa como un Analista Cuantitativo de Élite especializado en Gestión de Riesgo.
+        Ya tienes las probabilidades REALES calculadas por un motor estadístico
+        (distribución de Poisson sobre xG y datos históricos del equipo). NO inventes
+        ni cambies ningún número de probabilidad — solo selecciona, explica y ordena.
 
         EVENTO: {home} vs {away} ({league})
 
-        DATOS TÁCTICOS:
+        CONTEXTO TÁCTICO:
         1. FORMA/PREDICCIÓN: {context.get('form_analysis', 'Sin datos')}
         2. H2H: {context.get('h2h_trends', 'Sin datos')}
         3. LESIONES: {context.get('injury_report', 'Sin datos')}
         4. CUOTAS: {context.get('odds_summary', 'Sin datos')}
 
+        PICKS CANDIDATOS (probabilidad ya calculada, no la modifiques):
+        {picks_table}
+
         TU TAREA:
-        1. Calcula probabilidad REAL (0.0 a 1.0).
-        2. Genera un JSON PURO, SIN COMENTARIOS NI TEXTO EXTRA.
-        3. El campo "selection_code" debe ser "1" si gana {home}, "X" si es Empate, o "2" si gana {away}.
+        1. Elige los 5-6 picks más sólidos de la lista (puedes combinar mercados distintos).
+        2. Para cada uno, usa EXACTAMENTE el "market", "selection" y "probability" de la lista.
+        3. Agrega "confidence" (0-100, tu confianza cualitativa) y "risk_level" (Low/Medium/High).
+        4. Agrega una "reasoning" breve combinando el dato estadístico con el contexto táctico.
+        5. Agrega un "summary" de 1-2 frases con la lectura general del partido.
+        6. Responde SOLO con JSON puro, sin texto extra.
 
         FORMATO:
         {{
-            "prediction": "Nombre Equipo o Empate",
-            "selection_code": "1/X/2",
-            "win_probability": 0.00,
-            "confidence": 0,
-            "reasoning": "Breve razón",
-            "risk_level": "Low/Medium/High"
+            "summary": "Lectura general del partido",
+            "picks": [
+                {{"market": "...", "selection": "...", "probability": 0.00, "confidence": 0, "risk_level": "Low/Medium/High", "reasoning": "..."}}
+            ]
         }}
         """
 
+        result = None
         if self.model:
             if _gemini_limiter.allow():
                 try:
                     response = self.model.generate_content(prompt)
-                    return self._parse_json(response.text)
+                    result = self._parse_json(response.text)
                 except Exception as e:
                     error_str = str(e)
                     if "429" in error_str or "ResourceExhausted" in error_str or "quota" in error_str.lower():
@@ -120,7 +187,7 @@ class FootballAI:
             else:
                 print("⚠️ Gemini: límite interno RPM/RPD alcanzado, usando fallback Groq.")
 
-        if self.groq_key:
+        if result is None and self.groq_key:
             try:
                 print("🔄 Usando Fallback GROQ...")
                 client = Groq(api_key=self.groq_key)
@@ -128,14 +195,27 @@ class FootballAI:
                     model="llama-3.1-8b-instant",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.2,
-                    max_tokens=1024,
+                    max_tokens=1536,
                     response_format={"type": "json_object"},
                 )
-                return self._parse_json(completion.choices[0].message.content)
+                result = self._parse_json(completion.choices[0].message.content)
             except Exception as e:
                 print(f"❌ Fallo Groq: {e}")
 
-        return {"prediction": "Error", "win_probability": 0, "confidence": 0, "reasoning": "IA offline"}
+        if result is None or not result.get("picks"):
+            # Sin IA disponible (o respuesta no legible): degradamos a los picks
+            # crudos del Poisson, sin razonamiento cualitativo, pero con números reales.
+            result = {
+                "summary": "IA no disponible: se muestran los picks estadísticos sin razonamiento cualitativo.",
+                "picks": [
+                    {**p, "confidence": round(p["probability"] * 100), "risk_level": "Medium", "reasoning": "Calculado por el motor Poisson."}
+                    for p in candidate_picks[:6]
+                ],
+            }
+
+        result["generated_at"] = datetime.datetime.utcnow().isoformat()
+        result["picks"] = sorted(result.get("picks", []), key=lambda p: p.get("probability", 0), reverse=True)
+        return result
 
     def _parse_json(self, text):
         try:
@@ -150,13 +230,13 @@ class FootballAI:
                 text = text[start:end]
                 data = json.loads(text)
 
-                # 3. Normalización de datos numéricos
-                # A veces la IA devuelve strings "60%" en vez de números 0.60
-                if 'win_probability' in data:
-                    if isinstance(data['win_probability'], str):
-                        clean_prob = data['win_probability'].replace('%', '')
-                        # Si es mayor a 1 (ej. 60), dividir por 100. Si es 0.60, dejar igual.
-                        data['win_probability'] = float(clean_prob) / 100 if float(clean_prob) > 1 else float(clean_prob)
+                # Normalización: a veces la IA devuelve "probability"/"win_probability"
+                # como strings "60%" en vez de números 0.60
+                for pick in data.get("picks", []):
+                    prob = pick.get("probability")
+                    if isinstance(prob, str):
+                        clean = prob.replace('%', '')
+                        pick["probability"] = float(clean) / 100 if float(clean) > 1 else float(clean)
 
                 return data
             else:
@@ -165,11 +245,4 @@ class FootballAI:
         except Exception as e:
             print(f"❌ Error parseando JSON de IA: {e}")
             print(f"📄 Texto recibido (DEBUG): {text}")  # Para ver qué nos mandó la IA realmente
-            return {
-                "prediction": "Error Formato",
-                "selection_code": "X",  # Default seguro (Empate) para no romper el frontend
-                "win_probability": 0,
-                "confidence": 0,
-                "reasoning": "La IA generó una respuesta no legible. Intenta analizar de nuevo.",
-                "risk_level": "High"
-            }
+            return None

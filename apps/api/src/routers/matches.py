@@ -1,4 +1,3 @@
-import json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlmodel import Session, select
@@ -51,28 +50,24 @@ async def analyze_match(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user),  # 🔐 PROTEGIDO
 ):
-    def process_analysis():
-        match = session.exec(select(Match).where(Match.api_id == match_id)).first()
-        if not match: return None
-        
-        if match.ai_analysis:
-            try:
-                if isinstance(match.ai_analysis, str): json.loads(match.ai_analysis)
-            except: pass 
-            
-        print(f"🤖 Analizando: {match.home_team} vs {match.away_team}")
-        analysis_result = ai_service.analyze_match(match)
-        match.ai_analysis = analysis_result 
-        
+    def fetch_match():
+        return session.exec(select(Match).where(Match.api_id == match_id)).first()
+
+    match = await run_in_threadpool(fetch_match)
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    print(f"🤖 Analizando: {match.home_team} vs {match.away_team}")
+    analysis_result = await ai_service.analyze_match(match, session)
+
+    def save_analysis():
+        match.ai_analysis = analysis_result
         session.add(match)
         session.commit()
         session.refresh(match)
         return match
 
-    match = await run_in_threadpool(process_analysis)
-    if not match:
-        raise HTTPException(status_code=404, detail="Match not found")
-    return match
+    return await run_in_threadpool(save_analysis)
 
 @router.get("/test/ingest")
 async def test_full_ingestion(
