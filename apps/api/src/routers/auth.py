@@ -1,6 +1,6 @@
 import os
 import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from sqlmodel import Session, select
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ from jose import jwt
 from src.db.session import get_session
 from src.models.user import User
 from src.utils.security import verify_password, SECRET_KEY, ALGORITHM
+from src.utils.rate_limit import limiter
 
 router = APIRouter(prefix="", tags=["Autenticación y Setup"])
 
@@ -37,16 +38,17 @@ def _create_access_token(data: dict) -> str:
 
 
 @router.post("/auth/login", response_model=TokenResponse)
-async def login(request: LoginRequest, session: Session = Depends(get_session)):
+@limiter.limit("5/minute")
+async def login(request: Request, body: LoginRequest, session: Session = Depends(get_session)):
     """
     Autenticación con email y contraseña.
     Retorna un Bearer Token JWT válido por 8 horas.
     """
     def do_login():
-        user = session.exec(select(User).where(User.email == request.email)).first()
+        user = session.exec(select(User).where(User.email == body.email)).first()
 
         # Validación en tiempo constante (previene timing attacks)
-        if not user or not verify_password(request.password, user.hashed_password):
+        if not user or not verify_password(body.password, user.hashed_password):
             return None
 
         if not user.is_active:
