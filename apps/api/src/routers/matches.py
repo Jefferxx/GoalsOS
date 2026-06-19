@@ -1,5 +1,5 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlmodel import Session, select
 from pydantic import BaseModel
@@ -10,6 +10,7 @@ from src.services.ai import FootballAI
 from src.services.football.result_service import ResultAuditor
 from src.tasks.workers import run_ingestion_worker
 from src.utils.security import get_current_user  # 🔐 Guard de autenticación
+from src.utils.rate_limit import limiter
 
 router = APIRouter(prefix="", tags=["Matches y Auditoría"])
 ai_service = FootballAI()
@@ -43,7 +44,13 @@ async def get_match(match_id: str, session: Session = Depends(get_session)):
     return match
 
 @router.post("/matches/{match_id}/analyze")
-async def analyze_match(match_id: str, session: Session = Depends(get_session)):
+@limiter.limit("10/minute")
+async def analyze_match(
+    request: Request,
+    match_id: str,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),  # 🔐 PROTEGIDO
+):
     def process_analysis():
         match = session.exec(select(Match).where(Match.api_id == match_id)).first()
         if not match: return None
