@@ -8,6 +8,7 @@ import AnalyzeButton from "@/components/AnalyzeButton";
 import BetButton from "@/components/BetButton";
 import InjuryList from "@/components/InjuryList";
 import TeamFormPanel from "@/components/TeamFormPanel";
+import type { AiPick } from "@/types/match";
 import {
   ArrowLeft,
   SearchX,
@@ -102,8 +103,8 @@ export default function MatchPage() {
     </div>
   );
 
-  // Parseo seguro del análisis de IA
-  let analysisData = null;
+  // Parseo seguro del análisis de IA (shape: {summary, picks: [...]})
+  let analysisData: { summary?: string; picks?: AiPick[] } | null = null;
   try {
       if (match.ai_analysis) {
           analysisData = typeof match.ai_analysis === 'string'
@@ -111,6 +112,12 @@ export default function MatchPage() {
             : match.ai_analysis;
       }
   } catch (e) { console.error("Error parsing analysis", e); }
+
+  const picks = analysisData?.picks || [];
+  const topPick = picks[0];
+
+  const riskColor = (risk: string) =>
+    risk === "High" ? "text-red-600" : risk === "Low" ? "text-emerald-500" : "text-zinc-50";
 
   let injuriesCount = 0;
   if (match.injuries) {
@@ -194,6 +201,13 @@ export default function MatchPage() {
 
     return 1.0;
   };
+
+  // Solo el mercado "Ganador" tiene cuotas reales mapeables hoy (1X2 en odds_data)
+  const WINNER_SELECTION_TO_CODE: Record<string, string> = { "Local": "1", "Empate": "X", "Visitante": "2" };
+  const betOdds = topPick && topPick.market === "Ganador"
+    ? getOddsValue(WINNER_SELECTION_TO_CODE[topPick.selection] || "X", match.odds_data)
+    : 1.0;
+  const betSelectionLabel = topPick ? `${topPick.market}: ${topPick.selection}` : "";
 
   // Estado del partido: texto + icono + si es "en vivo" (para el color)
   const getStatusInfo = (status: string) => {
@@ -305,43 +319,37 @@ export default function MatchPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-8">
-                            {/* Estadísticas Clave */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="text-center">
-                                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Probabilidad</div>
-                                    <div className="text-2xl font-bold text-zinc-50">{(analysisData.win_probability * 100).toFixed(0)}%</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Confianza</div>
-                                    <div className="text-2xl font-bold text-zinc-50">
-                                        {analysisData.confidence}%
-                                    </div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Riesgo</div>
-                                    <div className={`text-2xl font-bold ${analysisData.risk_level === 'High' ? 'text-red-600' : 'text-zinc-50'}`}>
-                                        {analysisData.risk_level || "Medium"}
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="space-y-6">
+                            {analysisData.summary && (
+                                <p className="text-zinc-400 text-sm leading-relaxed italic border-b border-zinc-800 pb-6">
+                                    &quot;{analysisData.summary}&quot;
+                                </p>
+                            )}
 
-                            {/* Pick Principal & Razón */}
-                            <div className="border-t border-zinc-800 pt-6">
-                                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-                                    <div className="flex-1">
-                                        <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 block">Selección Recomendada</span>
-                                        <div className="text-3xl font-bold text-emerald-500 tracking-tight">
-                                            {analysisData.prediction}
+                            {picks.length === 0 ? (
+                                <p className="text-zinc-500 text-sm text-center py-4">Sin picks suficientemente sólidos para este partido todavía.</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {picks.map((pick, idx) => (
+                                        <div
+                                            key={`${pick.market}-${pick.selection}-${idx}`}
+                                            className={`flex items-center justify-between gap-4 p-4 rounded-lg border ${idx === 0 ? "border-emerald-600/40 bg-emerald-500/5" : "border-zinc-800"}`}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{pick.market}</span>
+                                                <div className="text-lg font-bold text-zinc-50 tracking-tight truncate">{pick.selection}</div>
+                                                {pick.reasoning && (
+                                                    <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{pick.reasoning}</p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                                <span className="text-xl font-mono font-bold text-zinc-50">{(pick.probability * 100).toFixed(0)}%</span>
+                                                <span className={`text-[10px] font-bold uppercase tracking-widest ${riskColor(pick.risk_level)}`}>{pick.risk_level}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="w-full md:w-2/3">
-                                        <p className="text-zinc-400 text-sm leading-relaxed italic">
-                                            &quot;{analysisData.reasoning}&quot;
-                                        </p>
-                                    </div>
+                                    ))}
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -371,12 +379,12 @@ export default function MatchPage() {
                         <h3 className="text-sm font-bold text-zinc-50 mb-2 flex items-center gap-2">
                             <Wallet size={14} className="text-zinc-500" /> Ejecución
                         </h3>
-                        {analysisData ? (
+                        {topPick ? (
                             <BetButton
                                 matchApiId={match.api_id}
-                                selection={analysisData.prediction}
-                                odds={getOddsValue(analysisData.selection_code, match.odds_data)}
-                                aiProbability={analysisData.win_probability || 0}
+                                selection={betSelectionLabel}
+                                odds={betOdds}
+                                aiProbability={topPick.probability || 0}
                             />
                         ) : (
                             <button disabled className="w-full flex items-center justify-center gap-2 py-3 bg-transparent text-zinc-600 font-bold rounded cursor-not-allowed text-xs uppercase tracking-widest border border-zinc-800">

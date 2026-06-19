@@ -18,9 +18,16 @@ export interface Match {
   };
   ai_analysis?: {
     summary: string;
-    confidence: number;
-    agents?: {
-      goleador?: { pick: string; reason: string };
-    };
+    generated_at?: string;
+    picks: AiPick[];
   };
+}
+
+export interface AiPick {
+  market: string;
+  selection: string;
+  probability: number;
+  confidence: number;
+  risk_level: "Low" | "Medium" | "High" | string;
+  reasoning: string;
 }
