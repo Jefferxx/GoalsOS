@@ -111,6 +111,23 @@ class FullPoissonAnalysis:
         }
 
 
+# Líneas estándar evaluadas para cada mercado de Over/Under
+_GOALS_TOTAL_LINES = (1.5, 2.5, 3.5)
+_GOALS_TEAM_LINES = (0.5, 1.5)
+_FIRST_HALF_LINES = (0.5, 1.5)
+_CORNERS_LINES = (8.5, 9.5, 10.5)
+_CARDS_LINES = (3.5, 4.5)
+
+# Filtro de relevancia: picks con probabilidad fuera de este rango no aportan
+# (muy bajas = improbables, muy altas = triviales/sin interés para apostar)
+_PICK_MIN_PROB = 0.50
+_PICK_MAX_PROB = 0.97
+
+# Proporción de goles que históricamente cae en la 1ª mitad (literatura: ~45%)
+# Se usa como respaldo cuando un equipo no tiene muestra propia suficiente.
+DEFAULT_FIRST_HALF_RATIO = 0.45
+
+
 # ─── MOTOR PRINCIPAL ──────────────────────────────────────────────────────────
 
 class PoissonEngine:
@@ -180,6 +197,95 @@ class PoissonEngine:
             implied_over_odds=1 / over  if over  > 0 else 99.0,
             implied_under_odds=1 / under if under > 0 else 99.0,
         )
+
+    def _compute_btts(self, lambda_home: float, lambda_away: float) -> float:
+        """P(ambos equipos marcan) = 1 - P(home=0) - P(away=0) + P(home=0, away=0)."""
+        p_home_0 = float(poisson.pmf(0, lambda_home))
+        p_away_0 = float(poisson.pmf(0, lambda_away))
+        return 1.0 - p_home_0 - p_away_0 + (p_home_0 * p_away_0)
+
+    def _compute_ou_lines(self, lambda_total: float, lines: tuple[float, ...]) -> list[dict]:
+        """Over/Under genérico para varias líneas, a partir de un λ total (Poisson)."""
+        picks = []
+        for line in lines:
+            threshold = int(line)  # ej. 2.5 -> bajo 2.5 son 0,1,2 goles (cdf en 2)
+            under = float(poisson.cdf(threshold, lambda_total))
+            over = 1.0 - under
+            picks.append({"line": line, "over": over, "under": under})
+        return picks
+
+    def _compute_independent_market(
+        self, lambda_home: float, lambda_away: float, lines: tuple[float, ...]
+    ) -> list[dict]:
+        """Mercado independiente del de goles (corners/tarjetas): se modela como
+        Poisson(λ_home + λ_away) igual que O/U, pero con λ propios del mercado."""
+        return self._compute_ou_lines(lambda_home + lambda_away, lines)
+
+    def analyze_full(
+        self,
+        lambda_home: float,
+        lambda_away: float,
+        corners_lambda_home: Optional[float] = None,
+        corners_lambda_away: Optional[float] = None,
+        cards_lambda_home: Optional[float] = None,
+        cards_lambda_away: Optional[float] = None,
+        first_half_ratio_home: float = DEFAULT_FIRST_HALF_RATIO,
+        first_half_ratio_away: float = DEFAULT_FIRST_HALF_RATIO,
+    ) -> list[dict]:
+        """
+        Agrega TODOS los mercados derivables en una sola lista de picks
+        {market, selection, probability}, ordenada por probabilidad descendente
+        y filtrada a un rango de relevancia (ni improbable ni trivial).
+
+        corners_lambda_*/cards_lambda_*: λ propios por equipo, estimados desde el
+        histórico real del equipo en la DB de GoalOS (ver teams.py). Si no se
+        proveen, esos mercados simplemente no se generan (sin datos suficientes).
+        """
+        candidates: list[dict] = []
+
+        # --- Ganador (1X2), ya existente ---
+        r1x2 = self._compute_1x2(lambda_home, lambda_away)
+        candidates.append({"market": "Ganador", "selection": "Local", "probability": r1x2.home_win})
+        candidates.append({"market": "Ganador", "selection": "Empate", "probability": r1x2.draw})
+        candidates.append({"market": "Ganador", "selection": "Visitante", "probability": r1x2.away_win})
+
+        # --- Goles totales (varias líneas) ---
+        for entry in self._compute_ou_lines(lambda_home + lambda_away, _GOALS_TOTAL_LINES):
+            candidates.append({"market": "Goles Totales", "selection": f"Más de {entry['line']}", "probability": entry["over"]})
+            candidates.append({"market": "Goles Totales", "selection": f"Menos de {entry['line']}", "probability": entry["under"]})
+
+        # --- Goles por equipo ---
+        for entry in self._compute_ou_lines(lambda_home, _GOALS_TEAM_LINES):
+            candidates.append({"market": "Goles Local", "selection": f"Más de {entry['line']}", "probability": entry["over"]})
+        for entry in self._compute_ou_lines(lambda_away, _GOALS_TEAM_LINES):
+            candidates.append({"market": "Goles Visitante", "selection": f"Más de {entry['line']}", "probability": entry["over"]})
+
+        # --- BTTS ---
+        btts_prob = self._compute_btts(lambda_home, lambda_away)
+        candidates.append({"market": "Ambos Marcan", "selection": "Sí", "probability": btts_prob})
+        candidates.append({"market": "Ambos Marcan", "selection": "No", "probability": 1.0 - btts_prob})
+
+        # --- 1ª mitad (λ derivado del λ total del partido x ratio histórico por equipo) ---
+        lambda_1h = (lambda_home * first_half_ratio_home) + (lambda_away * first_half_ratio_away)
+        for entry in self._compute_ou_lines(lambda_1h, _FIRST_HALF_LINES):
+            candidates.append({"market": "Goles 1ª Mitad", "selection": f"Más de {entry['line']}", "probability": entry["over"]})
+
+        # --- Corners (solo si hay λ propios del equipo) ---
+        if corners_lambda_home is not None and corners_lambda_away is not None:
+            for entry in self._compute_independent_market(corners_lambda_home, corners_lambda_away, _CORNERS_LINES):
+                candidates.append({"market": "Corners", "selection": f"Más de {entry['line']}", "probability": entry["over"]})
+
+        # --- Tarjetas (solo si hay λ propios del equipo) ---
+        if cards_lambda_home is not None and cards_lambda_away is not None:
+            for entry in self._compute_independent_market(cards_lambda_home, cards_lambda_away, _CARDS_LINES):
+                candidates.append({"market": "Tarjetas", "selection": f"Más de {entry['line']}", "probability": entry["over"]})
+
+        relevant = [
+            {**c, "probability": round(c["probability"], 4)}
+            for c in candidates
+            if _PICK_MIN_PROB <= c["probability"] <= _PICK_MAX_PROB
+        ]
+        return sorted(relevant, key=lambda c: c["probability"], reverse=True)
 
     def _detect_value_bets(
         self,
