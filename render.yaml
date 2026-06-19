@@ -29,6 +29,13 @@ services:
           property: connectionString
       - fromGroup: goalos-secrets
 
+  # NOTA (2026-06-18): el plan free de Render solo permite Web Services.
+  # goalos-worker/goalos-beat (type: worker) y los Cron Jobs requieren un
+  # plan de pago (Starter+); confirmado via API al intentar crearlos. Por
+  # ahora solo se desplego goalos-api + goalos-db + goalos-redis (gratis).
+  # La ingesta diaria / auditoria post-partido / auto-analisis pre-partido
+  # NO corren automaticamente en produccion hasta que se decida pagar el
+  # plan Starter para estos dos servicios, o se rediseñe el scheduling.
   - type: worker
     name: goalos-worker
     runtime: docker
