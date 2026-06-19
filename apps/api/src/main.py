@@ -1,7 +1,11 @@
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
 
 # --- IMPORTS PROPIOS ---
 from src.db.session import init_db
@@ -9,6 +13,7 @@ from src.celery_app import celery_app  # Registra esta app (Redis) como la "curr
 from src.services.football.real_service import RealFootballService
 from src.routers import bets, wallet, matches, auth, teams
 from src.routers import analysis
+from src.utils.rate_limit import limiter
 
 # --- LIFESPAN (ARRANQUE) ---
 @asynccontextmanager
@@ -20,7 +25,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="GoalOS Enterprise API", version="6.5.0 (Silicon Valley Ed.)", lifespan=lifespan)
 
-origins = ["*"]
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -28,6 +37,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
 
 football_service = RealFootballService()
 
