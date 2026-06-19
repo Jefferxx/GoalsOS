@@ -1,3 +1,5 @@
+import os
+import sys
 from sqlmodel import Session, select
 from src.db.session import engine
 from src.models.user import User
@@ -5,10 +7,13 @@ from src.utils.security import get_password_hash
 
 def create_admin():
     print("🛡️ Creando Usuario Administrador (CEO)...")
-    
-    # 1. Datos del Admin (TÚ)
-    admin_email = "jefferson@goalos.com"  # Puedes cambiarlo
-    plain_password = "admin_secure_pass"  # CAMBIA ESTO POR TU CONTRASEÑA REAL
+
+    # 1. Datos del Admin: vienen de env vars (nunca hardcodeados/commiteados)
+    admin_email = os.getenv("ADMIN_EMAIL")
+    plain_password = os.getenv("ADMIN_PASSWORD")
+    if not admin_email or not plain_password:
+        print("❌ Define ADMIN_EMAIL y ADMIN_PASSWORD como variables de entorno antes de correr este script.")
+        sys.exit(1)
     
     with Session(engine) as session:
         # 2. Verificar si ya existe
