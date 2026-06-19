@@ -28,102 +28,18 @@ from sqlmodel import Session, select
 from src.db.session import get_session
 from src.models.match import Match
 from src.services.math.poisson import PoissonEngine
-from src.services.scrapers.understat import UnderstatScraper, LEAGUE_SLUGS
+from src.services.math.xg_resolver import resolve_match_lambdas
 from src.utils.security import get_current_user
 
 logger = logging.getLogger("goalos.routers.analysis")
 
 router = APIRouter(prefix="/analysis", tags=["Análisis Predictivo"])
 
-# Instancias singleton de los servicios (sin estado mutable, son thread-safe)
+# Instancia singleton (sin estado mutable, es thread-safe)
 _poisson_engine = PoissonEngine()
-_understat_scraper = UnderstatScraper()
-
-# ─── MAPPING API-FOOTBALL LEAGUE_ID → UNDERSTAT SLUG ──────────────────────────
-# Solo las ligas que Understat tiene disponibles
-_LEAGUE_ID_TO_UNDERSTAT: dict[int, str] = {
-    39:  "EPL",         # Premier League
-    140: "La_liga",     # La Liga
-    78:  "Bundesliga",  # Bundesliga
-    135: "Serie_A",     # Serie A
-    61:  "Ligue_1",     # Ligue 1
-}
-
-# xG neutral por liga cuando todos los fallbacks fallan
-# Basado en promedios históricos europeos (Caley, 2014-2024)
-_NEUTRAL_XG: dict[str, tuple[float, float]] = {
-    "EPL":        (1.53, 1.14),
-    "La_liga":    (1.47, 1.08),
-    "Bundesliga": (1.68, 1.22),
-    "Serie_A":    (1.38, 1.05),
-    "Ligue_1":    (1.45, 1.10),
-    "DEFAULT":    (1.35, 1.10),
-}
 
 
-# ─── HELPERS DE FALLBACK ──────────────────────────────────────────────────────
-
-def _extract_xg_from_api_prediction(match: Match) -> tuple[Optional[float], Optional[float]]:
-    """
-    Fallback 1: Extrae xG implícito desde api_prediction de API-Football.
-
-    API-Football /predictions devuelve porcentajes de victoria:
-      { "predictions": { "percent": { "home": "55%", "draw": "25%", "away": "20%" } } }
-
-    Convertimos esos porcentajes a lambdas usando la inversa de la CDF Poisson
-    aproximada: λ ≈ -ln(P_draw) * prob_home_ratio  (heurística calibrada).
-
-    Si no hay datos, retorna (None, None).
-    """
-    try:
-        pred = match.api_prediction
-        if not pred:
-            return None, None
-
-        # Navegar estructura de API-Football
-        response = pred if isinstance(pred, dict) else {}
-        # Puede venir como { response: [...] } o directo
-        if "response" in response:
-            response = response["response"][0] if response["response"] else {}
-
-        percent = (
-            response.get("predictions", {})
-            .get("percent", {})
-        )
-        if not percent:
-            return None, None
-
-        def parse_pct(val) -> float:
-            """Convierte '55%' → 0.55 o float directo."""
-            if isinstance(val, str):
-                return float(val.replace("%", "")) / 100
-            return float(val) / 100 if float(val) > 1 else float(val)
-
-        p_home = parse_pct(percent.get("home", 0))
-        p_draw = parse_pct(percent.get("draw", 0))
-        p_away = parse_pct(percent.get("away", 0))
-
-        if p_home <= 0 or p_away <= 0:
-            return None, None
-
-        # Heurística: si p_home ≈ 0.55, λ_home ≈ 1.6 (calibración empírica)
-        # Usamos la media de goles totales esperados ≈ 2.6 (promedio europeo)
-        # y distribuimos según la ratio de probabilidades
-        total_lambda = 2.65  # promedio empírico de goles/partido en ligas top
-        ratio = p_home / (p_home + p_away)
-        lambda_home = total_lambda * ratio
-        lambda_away = total_lambda * (1 - ratio)
-
-        logger.info(
-            f"📊 [Fallback API-Football] {match.home_team} vs {match.away_team}: "
-            f"λh={lambda_home:.3f}, λa={lambda_away:.3f} (desde porcentajes {p_home:.0%}/{p_away:.0%})"
-        )
-        return round(lambda_home, 3), round(lambda_away, 3)
-
-    except Exception as e:
-        logger.warning(f"⚠️ [Fallback API] Error extrayendo xG implícito: {e}")
-        return None, None
-
+# ─── HELPERS DE ODDS ───────────────────────────────────────────────────────────
 
 def _extract_odds_from_db(match: Match) -> dict[str, Optional[float]]:
     """
@@ -193,48 +109,8 @@ async def predict_match(
             detail=f"Partido '{match_id}' no encontrado en la base de datos.",
         )
 
-    # ── 2. Intentar xG desde Understat ─────────────────────────────────────
-    lambda_home: Optional[float] = None
-    lambda_away: Optional[float] = None
-    xg_source = "unknown"
-
-    understat_slug = _LEAGUE_ID_TO_UNDERSTAT.get(match.league_id)
-
-    if understat_slug:
-        try:
-            logger.info(
-                f"🕷️ [Understat] Buscando xG para {match.home_team} vs "
-                f"{match.away_team} en {understat_slug}/{season}"
-            )
-            lambda_home, lambda_away = await _understat_scraper.get_match_lambdas(
-                home_team=match.home_team,
-                away_team=match.away_team,
-                league_slug=understat_slug,
-                season=season,
-            )
-            if lambda_home and lambda_away:
-                xg_source = f"understat/{understat_slug}/{season}"
-                logger.info(f"✅ [Understat] λh={lambda_home}, λa={lambda_away}")
-        except Exception as e:
-            logger.warning(f"⚠️ [Understat] Fallo en scraping: {e}. Activando fallback.")
-
-    # ── 3. Fallback: xG implícito desde api_prediction (DB) ────────────────
-    if not lambda_home or not lambda_away:
-        lambda_home, lambda_away = _extract_xg_from_api_prediction(match)
-        if lambda_home and lambda_away:
-            xg_source = "api_football_prediction_derived"
-
-    # ── 4. Fallback final: xG neutral por liga ──────────────────────────────
-    neutral_used = False
-    if not lambda_home or not lambda_away:
-        neutral_key = understat_slug or "DEFAULT"
-        lambda_home, lambda_away = _NEUTRAL_XG.get(neutral_key, _NEUTRAL_XG["DEFAULT"])
-        xg_source = f"neutral_average/{neutral_key}"
-        neutral_used = True
-        logger.warning(
-            f"⚠️ [Predicción] Usando xG neutral ({neutral_key}) para "
-            f"{match.home_team} vs {match.away_team}. Confianza reducida."
-        )
+    # ── 2-4. Resolver λ (Understat → xG implícito → xG neutral) ─────────────
+    lambda_home, lambda_away, xg_source, neutral_used = await resolve_match_lambdas(match, season)
 
     # ── 5. Ejecutar PoissonEngine ────────────────────────────────────────────
     # Extraer cuotas del mercado desde DB para detectar Value Bets
