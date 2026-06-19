@@ -82,7 +82,18 @@ def run_ingestion_worker(dates: List[str], audit_mode: bool = False):
                             existing_match.away_score = away_score
                             session.add(existing_match)
                             session.commit()
-                    continue 
+
+                        # Partido finalizado sin estadísticas guardadas: las traemos una
+                        # sola vez (corners/tarjetas) para alimentar el motor de picks
+                        # múltiples y el histórico de "Forma Reciente" del equipo.
+                        if current_status in ("FT", "AET", "PEN") and not existing_match.statistics:
+                            stats = football_service.get_fixture_statistics(api_id)
+                            time.sleep(7)
+                            if stats:
+                                existing_match.statistics = stats
+                                session.add(existing_match)
+                                session.commit()
+                    continue
 
                 needs_full_update = False
                 if not existing_match: needs_full_update = True
